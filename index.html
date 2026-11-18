@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>รับส่งผลการแข่งขัน · นครลำดวนเกมส์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f5f1;--surface:#fff;--ink:#1b1b19;--ink2:#55554f;--muted:#8a897f;--line:#e1e0d9;--line2:#c3c2b7;
+  --accent:#1f5fbf;--accent-weak:#e3ecfa;
+  --good:#0ca30c;--good-ink:#006300;--good-weak:#e2f4e2;
+  --warn:#fab219;--warn-ink:#7a5300;--warn-weak:#fdf1d4;
+  --serious:#ec835a;--crit:#d03b3b;--crit-ink:#a32020;--crit-weak:#fbe5e5;
+  --radius:12px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Sarabun,"Noto Sans Thai","Leelawadee UI",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 16px calc(0px);}
+.hrow{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.who{font-weight:600;line-height:1.2}
+.who small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:999px;font-size:13px;background:var(--bg);border:1px solid var(--line);white-space:nowrap}
+.chip.demo{background:var(--warn-weak);border-color:var(--warn);color:var(--warn-ink)}
+nav{display:flex;gap:4px;overflow-x:auto;margin:8px -16px 0;padding:0 12px;scrollbar-width:none}
+nav button{border:0;background:none;padding:10px 12px;border-bottom:3px solid transparent;color:var(--ink2);white-space:nowrap;cursor:pointer;font-weight:600}
+nav button.on{color:var(--accent);border-bottom-color:var(--accent)}
+nav .badge{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:var(--crit);color:#fff;font-size:12px;margin-left:4px}
+main{max-width:1280px;margin:0 auto;padding:16px 16px 96px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+h2{font-size:18px;margin:0 0 10px}
+h3{font-size:15px;margin:14px 0 6px;color:var(--ink2)}
+label.f{display:block;font-weight:600;margin:12px 0 6px}
+input[type=text],input[type=number],input[type=tel],input[type=date],select,textarea{width:100%;padding:12px;border:1px solid var(--line2);border-radius:10px;background:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 16px;border-radius:10px;border:1px solid var(--line2);background:#fff;cursor:pointer;font-weight:600;min-height:46px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.good{background:var(--good-ink);border-color:var(--good-ink);color:#fff}
+.btn.danger{color:var(--crit-ink);border-color:var(--crit)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{min-height:36px;padding:6px 12px;font-size:14px;white-space:nowrap}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>.btn{flex:1}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{padding:10px 14px;border-radius:10px;border:1px solid var(--line2);background:#fff;cursor:pointer;text-align:left;line-height:1.25}
+.pill small{display:block;color:var(--muted);font-size:12px}
+.pill.on{border-color:var(--accent);background:var(--accent-weak);box-shadow:inset 0 0 0 1px var(--accent)}
+.pill.done{opacity:.55}
+.pill:disabled{cursor:not-allowed}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.hint{background:var(--accent-weak);border-radius:10px;padding:10px 12px;font-size:14px;color:#123d7a}
+.err{background:var(--crit-weak);color:var(--crit-ink);border-radius:10px;padding:10px 12px;font-size:14px}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumb{position:relative;width:96px;height:128px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb button{position:absolute;top:4px;right:4px;border:0;border-radius:999px;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
+.status{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap}
+.st-SUBMITTED{background:var(--warn-weak);color:var(--warn-ink)}
+.st-CLAIMED{background:var(--accent-weak);color:var(--accent)}
+.st-ENTERED{background:var(--good-weak);color:var(--good-ink)}
+.st-RETURNED{background:var(--crit-weak);color:var(--crit-ink)}
+.list .item{display:flex;gap:10px;align-items:flex-start;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .item:last-child{border-bottom:0}
+.list .item.sel{background:var(--accent-weak)}
+.item .grow{flex:1;min-width:0}
+.item .t{font-weight:600}
+.item .m{font-size:13px;color:var(--ink2)}
+.bigid{font-size:44px;font-weight:700;letter-spacing:2px;text-align:center;margin:8px 0}
+.split{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){.split{grid-template-columns:380px 1fr}.sticky{position:sticky;top:120px}}
+.photo-box{background:#2a2a28;border-radius:10px;min-height:280px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.photo-box img{max-width:100%;max-height:70vh;transition:transform .2s;cursor:zoom-in}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+@media(min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:1100px){.tiles{grid-template-columns:repeat(7,1fr)}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+.tile .l{font-size:13px;color:var(--ink2)}
+.tile .v{font-size:28px;font-weight:700;line-height:1.2}
+.tile .v small{font-size:15px;color:var(--muted);font-weight:600}
+.tile.alert{border-color:var(--crit);background:var(--crit-weak)}
+.tile.alert .v{color:var(--crit-ink)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600;font-size:13px;white-space:nowrap}
+.seg{display:flex;gap:2px;height:8px;min-width:120px;margin-top:4px}
+.seg span{display:block;height:100%;border-radius:999px}
+.seg .s-done{background:var(--good)}.seg .s-pend{background:var(--warn)}.seg .s-left{background:var(--line)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.d-in{background:var(--good)}.d-out{background:var(--line2)}.d-none{background:transparent;border:1.5px solid var(--crit)}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:6px;background:var(--bg);border:1px solid var(--line);margin:1px 2px 1px 0;white-space:nowrap}
+.tag.red{background:var(--crit-weak);border-color:var(--crit);color:var(--crit-ink)}
+.tag.green{background:var(--good-weak);border-color:var(--good);color:var(--good-ink)}
+.people{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){.people{grid-template-columns:repeat(3,1fr)}}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar select,.toolbar input{width:auto;padding:8px 10px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:50;display:flex;align-items:center;justify-content:center;overflow:auto}
+.overlay img{max-width:none;width:auto;max-height:none}
+.overlay .close{position:fixed;top:12px;right:12px}
+dialog{border:0;border-radius:14px;padding:20px;max-width:440px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1b1b19;color:#fff;padding:10px 16px;border-radius:10px;z-index:60;max-width:90%;font-size:14px}
+.center-msg{text-align:center;padding:48px 16px;color:var(--muted)}
+.spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.tbl-wrap{overflow-x:auto}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header id="hdr" hidden>
+  <div class="hrow">
+    <div class="who" id="who"></div>
+    <div class="row" style="gap:6px"><span class="chip demo" id="demoChip" hidden>โหมดทดสอบ</span><span class="chip" id="dateChip"></span></div>
+  </div>
+  <nav id="tabs"></nav>
+</header>
+<main id="app"><div class="center-msg"><div class="spin"></div>กำลังเปิดระบบ…</div></main>
+<dialog id="dlg"></dialog>
+
+<script>
+/* ===================== ตั้งค่า ===================== */
+const CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbyNRV4gg9f6MKveoF1IyluZlCipxhrytzwp14-sp2FqwjQe2BRRaVnGdIQbpdAx-a-EVg/exec', // URL ของ Apps Script web app
+  LIFF_ID: '0000000000-xxxxxxxx',                                   // LIFF ID จาก LINE Developers
+};
+/* =================================================== */
+
+const qs = new URLSearchParams(location.search);
+const API = qs.get('api') || CONFIG.API_URL;
+const DEV = qs.get('dev'); // ?dev=F07 ใช้ได้เฉพาะเมื่อ DEV_MODE=true ฝั่ง server
+const RETURN_REASONS = ['รูปไม่ชัด อ่านคะแนนไม่ได้', 'ไม่มีลายเซ็นกรรมการ/ผู้ตัดสิน', 'คู่ที่ไม่ตรงกับฟอร์ม', 'ถ่ายไม่ครบแผ่น', 'ส่งผิดชนิดกีฬา'];
+const ST = {SUBMITTED:'⏳ รอรับ', CLAIMED:'✍️ กำลังป้อน', ENTERED:'✅ ป้อน กกท. แล้ว', RETURNED:'↩️ ตีกลับ'};
+const DAYS = ['2026-12-04','2026-12-05','2026-12-06','2026-12-07','2026-12-08','2026-12-09','2026-12-10','2026-12-11','2026-12-12','2026-12-13'];
+
+const S = { me:null, today:null, demo:false, tab:null, myDay:null, draft:null, queue:null, sel:null, photoCache:{}, dashDate:null, timers:[], lastWaiting:null };
+
+/* ---------- utils ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const thDate = d => { if(!d) return ''; const [y,m,dd]=d.split('-').map(Number); const mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][m]; return `${dd} ${mo} ${y+543}`; };
+const hm = iso => iso ? iso.slice(11,16) : '';
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'k'+Date.now()+Math.random().toString(16).slice(2));
+function toast(msg, ms=2600){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), ms); }
+function clearTimers(){ S.timers.forEach(clearInterval); S.timers=[]; }
+function every(ms, fn){ S.timers.push(setInterval(()=>{ if(!document.hidden) fn(); }, ms)); }
+function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function load(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
+
+/* ---------- API ---------- */
+let idToken = null;
+async function api(action, body={}, opts={}){
+  const payload = Object.assign({action}, body);
+  if (DEV) payload.devUser = DEV; else payload.idToken = idToken;
+  let lastErr;
+  const tries = opts.retries ?? 2;
+  for (let i=0;i<=tries;i++){
+    try{
+      const r = await fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload), redirect:'follow'});
+      const j = await r.json();
+      if (j.me) S.me = j.me;
+      if (!j.ok){ const e = new Error(j.message || j.error); e.code = j.error; throw e; }
+      return j.data;
+    }catch(e){
+      lastErr = e;
+      if (e.code) throw e;                // server ตอบกลับมาแล้ว ไม่ต้องลองซ้ำ
+      await new Promise(r=>setTimeout(r, 1200*(i+1)));
+    }
+  }
+  const e = new Error('เชื่อมต่อไม่ได้ ตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองอีกครั้ง'); e.code='NETWORK'; e.cause=lastErr; throw e;
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  try{
+    if (!DEV){
+      await new Promise((ok,bad)=>{ const s=document.createElement('script'); s.src='https://static.line-scdn.net/liff/edge/2/sdk.js'; s.onload=ok; s.onerror=()=>bad(new Error('โหลด LINE SDK ไม่ได้')); document.head.appendChild(s); });
+      await liff.init({liffId: CONFIG.LIFF_ID});
+      if (!liff.isLoggedIn()){ liff.login({redirectUri: location.href}); return; }
+      idToken = liff.getIDToken();
+    }
+    const d = await api('me');
+    S.today = d.today; S.demo = d.demo; S.dashDate = d.today;
+    route();
+  }catch(e){
+    $('#app').innerHTML = `<div class="card"><h2>เปิดระบบไม่สำเร็จ</h2><div class="err">${esc(e.message)}</div><p class="small muted">ลองปิดแล้วเปิดลิงก์ใหม่จากกลุ่ม LINE</p></div>`;
+  }
+}
+
+function route(){
+  const me = S.me;
+  if (!me.bound){ $('#hdr').hidden = true; return me.pending ? viewPending() : viewBind(); }
+  $('#hdr').hidden = false;
+  $('#who').innerHTML = `${esc(me.code==='ADMIN' ? 'ผู้ดูแลระบบ' : me.code+' · '+me.name)}<small>${{field:'ภาคสนาม'+(me.group?' กลุ่ม '+me.group:''),center:'ศูนย์ป้อนข้อมูล',admin:'ผู้ดูแล'}[me.role]||''}${me.lineName?' · LINE: '+esc(me.lineName):''}</small>`;
+  $('#dateChip').textContent = thDate(S.today);
+  $('#demoChip').hidden = !S.demo;
+  const tabs = {
+    field:  [['submit','ส่งผล'],['checkin','เช็กอิน'],['mine','ของฉัน'],['dash','ภาพรวม']],
+    center: [['queue','คิวรับผล'],['dash','ภาพรวม'],['checkin','เช็กอิน']],
+    admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['admin','ผู้ดูแล'],['submit','ส่งผล']],
+  }[me.role];
+  const want = qs.get('tab');
+  if (!S.tab || !tabs.some(t=>t[0]===S.tab)) S.tab = tabs.some(t=>t[0]===want) ? want : tabs[0][0];
+  $('#tabs').innerHTML = tabs.map(([k,l])=>`<button data-k="${k}" class="${k===S.tab?'on':''}">${l}${k==='queue'?'<span class="badge" id="qBadge" hidden></span>':''}${k==='mine'?'<span class="badge" id="mBadge" hidden></span>':''}</button>`).join('');
+  $('#tabs').onclick = e => { const b=e.target.closest('button'); if(b){ S.tab=b.dataset.k; route(); } };
+  clearTimers();
+  ({submit:viewSubmit, checkin:viewCheckin, mine:viewMine, queue:viewQueue, dash:viewDash, admin:viewAdmin})[S.tab]();
+}
+
+/* ---------- bind ---------- */
+function viewBind(){
+  $('#app').innerHTML = `
+  <div class="card" style="max-width:480px;margin:24px auto">
+    <h2>ลงทะเบียนครั้งแรก</h2>
+    <p class="muted small">ผูกบัญชี LINE ของคุณกับรายชื่อผู้ช่วยงาน ทำครั้งเดียว ระบบจะแสดงชื่อจริงตามรายชื่อ ไม่ใช้ชื่อ LINE</p>
+    <label class="f">รหัสนักศึกษา</label><input id="sid" type="tel" inputmode="numeric" placeholder="เช่น 6912732112" maxlength="12">
+    <label class="f">เบอร์โทรศัพท์ 4 ตัวท้าย</label><input id="l4" type="tel" inputmode="numeric" maxlength="4" placeholder="เช่น 4627">
+    <div id="bErr" style="margin-top:10px"></div>
+    <button class="btn pri block" id="bGo" style="margin-top:14px">ยืนยัน</button>
+    <details style="margin-top:18px"><summary class="small muted">สำหรับผู้ดูแลระบบ</summary>
+      <label class="f">รหัสผู้ดูแล (PIN)</label><input id="pin" type="tel" inputmode="numeric">
+      <button class="btn block" id="aGo" style="margin-top:10px">ลงทะเบียนเป็นผู้ดูแล</button>
+    </details>
+  </div>`;
+  const go = async body => {
+    $('#bErr').innerHTML='';
+    try{ const r = await api('bind', body); if (r.status==='pending') toast('ส่งคำขอแล้ว รอผู้ดูแลอนุมัติ'); await api('me'); route(); }
+    catch(e){ $('#bErr').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  };
+  $('#bGo').onclick = () => go({studentId:$('#sid').value, last4:$('#l4').value});
+  $('#aGo').onclick = () => go({code:'ADMIN', pin:$('#pin').value});
+}
+function viewPending(){
+  $('#app').innerHTML = `<div class="card" style="max-width:480px;margin:24px auto;text-align:center">
+    <h2>รอผู้ดูแลอนุมัติ</h2><p>ไม่มีเบอร์โทรของคุณในรายชื่อ ผู้ดูแลจะตรวจสอบและอนุมัติให้</p>
+    <button class="btn block" onclick="api('me').then(route)">ตรวจสอบอีกครั้ง</button></div>`;
+}
+
+/* ---------- submit (field) ---------- */
+function newDraft(){ return {clientKey:uuid(), sport:'', matchNo:'', photos:[]}; }
+async function viewSubmit(){
+  if (!S.draft) S.draft = load('draft') || newDraft();
+  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
+  try{ S.myDay = await api('myDay'); }catch(e){ $('#app').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  renderSubmit();
+}
+function renderSubmit(showOther){
+  const d = S.myDay, dr = S.draft;
+  const sportBtn = s => `<button class="pill ${dr.sport===s.sport?'on':''}" data-sport="${esc(s.sport)}">${esc(s.sport)}<small>${esc(s.venue||'')}${s.closed?' · ปิดแล้ว':''}</small></button>`;
+  const inOther = dr.sport && !d.sports.some(s=>s.sport===dr.sport);
+  const showO = showOther || inOther || !d.sports.length;
+  const ms = dr.sport ? (d.matches[dr.sport]||[]) : [];
+  const sd = [...d.sports, ...d.otherSports].find(s=>s.sport===dr.sport);
+  $('#app').innerHTML = `
+  <div class="card">
+    <h2>ส่งผลการแข่งขัน</h2>
+    ${d.onDuty ? '' : `<div class="hint">วันนี้คุณไม่มีชื่อในตารางเวรภาคสนาม หากมาช่วยงาน เลือกชนิดกีฬาจาก "กีฬาอื่นวันนี้" ได้</div>`}
+    <label class="f">1. ชนิดกีฬา</label>
+    <div class="pills" id="sports">${d.sports.map(sportBtn).join('') || '<span class="muted small">ไม่มีกีฬาของกลุ่มคุณวันนี้</span>'}</div>
+    ${d.otherSports.length ? (showO ? `<h3>กีฬาอื่นวันนี้</h3><div class="pills" id="sports2">${d.otherSports.map(sportBtn).join('')}</div>` : `<button class="btn sm" id="moreSp" style="margin-top:8px">+ กีฬาอื่นวันนี้</button>`) : ''}
+
+    <label class="f">2. คู่ที่</label>
+    ${!dr.sport ? '<div class="muted small">เลือกชนิดกีฬาก่อน</div>' :
+      ms.length ? `<div class="pills" id="matches">${ms.map(m=>`<button class="pill ${String(dr.matchNo)===String(m.matchNo)?'on':''} ${m.submittedId?'done':''}" data-m="${esc(m.matchNo)}">คู่ที่ ${esc(m.matchNo)}<small>${esc(m.startTime||'')}${m.submittedId?' · ส่งแล้ว '+m.submittedId:''}</small></button>`).join('')}</div>
+        <details style="margin-top:8px"><summary class="small muted">ไม่มีคู่ในรายการ / พิมพ์เอง</summary><input id="mIn" type="text" inputmode="numeric" value="${esc(ms.some(m=>String(m.matchNo)===String(dr.matchNo))?'':dr.matchNo)}" placeholder="เลขคู่ที่" style="margin-top:6px"></details>`
+      : `<input id="mIn" type="text" inputmode="numeric" value="${esc(dr.matchNo)}" placeholder="เลขคู่ที่ตามฟอร์ม เช่น 3">`}
+
+    <label class="f">3. รูปฟอร์มที่กรรมการเซ็นแล้ว</label>
+    <div class="hint">ถ่ายให้ <b>ติดทั้งแผ่น</b> วางบนพื้นเรียบ ไม่ย้อนแสง อ่านคะแนนและลายเซ็นได้ชัด · ส่งได้ไม่เกิน 3 รูป (เช่น ใบบันทึกผล + แบบรับรองผล)</div>
+    <div class="row" style="margin-top:8px">
+      <label class="btn" for="cam">📷 ถ่ายรูป</label><input id="cam" type="file" accept="image/*" capture="environment" hidden>
+      <label class="btn" for="gal">🖼️ เลือกจากคลังภาพ</label><input id="gal" type="file" accept="image/*" multiple hidden>
+    </div>
+    <div class="thumbs">${dr.photos.map((p,i)=>`<div class="thumb"><img src="${p}"><button data-rm="${i}" aria-label="ลบรูป">✕</button></div>`).join('')}</div>
+    <div id="sErr" style="margin-top:10px"></div>
+    <button class="btn pri block" id="send" style="margin-top:14px" ${dr.sport && dr.matchNo && dr.photos.length ? '' : 'disabled'}>ส่งผลไปศูนย์ประมวลผล</button>
+  </div>
+  ${sd ? `<div class="card"><div class="hrow"><div><b>${esc(sd.sport)}</b><div class="small muted">${sd.closed?'ปิดการแข่งขันวันนี้แล้ว':'จบการแข่งขันชนิดนี้ทั้งวันแล้ว? แจ้งศูนย์ว่ามีทั้งหมดกี่คู่'}</div></div>
+     <button class="btn sm" id="closeSp">${sd.closed?'เปิดใหม่':'ปิดวันนี้'}</button></div></div>` : ''}`;
+
+  const pick = e => { const b=e.target.closest('[data-sport]'); if(!b) return; dr.sport=b.dataset.sport; dr.matchNo=''; saveDraft(); renderSubmit(); };
+  $('#sports').onclick = pick; if ($('#sports2')) $('#sports2').onclick = pick;
+  if ($('#moreSp')) $('#moreSp').onclick = () => renderSubmit(true);
+  if ($('#matches')) $('#matches').onclick = e => { const b=e.target.closest('[data-m]'); if(!b) return; dr.matchNo=b.dataset.m; saveDraft(); renderSubmit(); };
+  if ($('#mIn')) $('#mIn').oninput = e => { dr.matchNo = e.target.value.trim(); saveDraft(); $('#send').disabled = !(dr.sport && dr.matchNo && dr.photos.length); };
+  const add = async e => { const files=[...e.target.files]; for (const f of files){ if (dr.photos.length>=3) { toast('ส่งได้ไม่เกิน 3 รูป'); break; } dr.photos.push(await shrink(f)); } saveDraft(); renderSubmit(); };
+  $('#cam').onchange = add; $('#gal').onchange = add;
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { dr.photos.splice(+b.dataset.rm,1); saveDraft(); renderSubmit(); });
+  $('#send').onclick = () => doSubmit(false);
+  if ($('#closeSp')) $('#closeSp').onclick = () => closeSport(sd);
+}
+function saveDraft(){ store('draft', S.draft); }
+
+async function shrink(file, max=1600, q=0.82){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((ok,bad)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=bad; i.src=url; });
+    const k = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas'); c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg', q);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function doSubmit(force){
+  const dr = S.draft, btn = $('#send');
+  btn.disabled = true; btn.textContent = 'กำลังส่ง… อย่าปิดหน้านี้';
+  $('#sErr').innerHTML='';
+  try{
+    const r = await api('submit', {clientKey:dr.clientKey, sport:dr.sport, matchNo:dr.matchNo, photos:dr.photos, forceDuplicate:force}, {retries:3});
+    const s = r.submission;
+    S.draft = newDraft(); store('draft');
+    $('#app').innerHTML = `<div class="card" style="text-align:center">
+      <div style="font-size:40px">✅</div><h2>ส่งผลเรียบร้อย</h2>
+      <div class="muted">เลขรับเรื่อง</div><div class="bigid">${esc(s.id)}</div>
+      <div class="hint" style="text-align:left">เขียนเลข <b>${esc(s.id)}</b> ที่มุมขวาบนของฟอร์มกระดาษ แล้วเก็บต้นฉบับส่งศูนย์ตอนเลิกงาน</div>
+      <dl class="kv" style="text-align:left"><dt>ชนิดกีฬา</dt><dd>${esc(s.sport)}</dd><dt>คู่ที่</dt><dd>${esc(s.matchNo)}</dd><dt>เวลา</dt><dd>${hm(s.submittedAt)} น.</dd>${s.duplicateOf?`<dt>หมายเหตุ</dt><dd>ส่งซ้ำกับ ${esc(s.duplicateOf)}</dd>`:''}</dl>
+      <button class="btn pri block" id="again">ส่งผลคู่ถัดไป</button></div>`;
+    $('#again').onclick = viewSubmit;
+  }catch(e){
+    if (e.code === 'DUPLICATE'){
+      let info={}; try{ info=JSON.parse(e.message); }catch(_){}
+      const ok = await confirmDlg(`คู่นี้มีคนส่งแล้ว`, `${esc(dr.sport)} คู่ที่ ${esc(dr.matchNo)} ถูกส่งแล้วโดย <b>${esc(info.byName||info.by)}</b> เวลา ${hm(info.at)} น. (เลข ${esc(info.id)}, ${ST[info.status]||''})<br><br>ตรวจคู่ที่อีกครั้ง ถ้าแน่ใจว่าต้องส่งซ้ำ ศูนย์จะเห็นว่าเป็นรายการซ้ำ`, 'ส่งซ้ำ', 'กลับไปแก้');
+      if (ok) return doSubmit(true);
+      renderSubmit();
+    } else {
+      $('#sErr').innerHTML = `<div class="err">${esc(e.message)}<br><span class="small">ข้อมูลและรูปยังอยู่ กดส่งอีกครั้งได้ ระบบจะไม่บันทึกซ้ำ</span></div>`;
+      btn.disabled=false; btn.textContent='ส่งอีกครั้ง';
+    }
+  }
+}
+
+async function closeSport(sd){
+  if (sd.closed){
+    if (!await confirmDlg('เปิดชนิดกีฬานี้ใหม่?', esc(sd.sport), 'เปิดใหม่')) return;
+    await api('closeSport', {sport:sd.sport, reopen:true}).catch(e=>toast(e.message));
+  } else {
+    const n = await promptDlg(`ปิด ${esc(sd.sport)} วันนี้`, 'วันนี้แข่งทั้งหมดกี่คู่ (นับตามฟอร์มที่มีกรรมการเซ็น)', 'number');
+    if (n===null) return;
+    await api('closeSport', {sport:sd.sport, expectedMatches:Number(n)}).then(()=>toast('แจ้งศูนย์แล้ว')).catch(e=>toast(e.message));
+  }
+  viewSubmit();
+}
+
+/* ---------- check-in ---------- */
+async function viewCheckin(){
+  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
+  const d = S.myDay = await api('myDay').catch(e=>({error:e.message}));
+  if (d.error) return $('#app').innerHTML = `<div class="err">${esc(d.error)}</div>`;
+  const isCenter = S.me.role==='center';
+  const ci = d.checkin;
+  $('#app').innerHTML = `<div class="card">
+    <h2>เช็กอินหน้างาน</h2>
+    <div class="hint">${ci ? `ตอนนี้อยู่ที่ <b>${esc(ci.sport||'-')}</b> ตั้งแต่ ${hm(ci.inAt)} น.` : 'ยังไม่ได้เช็กอินวันนี้'}</div>
+    ${isCenter ? `<button class="btn pri block" id="cin" style="margin-top:12px">${ci?'เช็กอินใหม่':'เข้าศูนย์แล้ว'}</button>` : `
+      <label class="f">${ci?'ย้ายไปสนาม':'ถึงสนามแล้ว'} — เลือกชนิดกีฬา</label>
+      <div class="pills" id="cs">${[...d.sports, ...d.otherSports].map(s=>`<button class="pill ${ci&&ci.sport===s.sport?'on':''}" data-s="${esc(s.sport)}" data-v="${esc(s.venue)}">${esc(s.sport)}<small>${esc(s.venue||'')}${d.sports.includes(s)?'':' · กลุ่มอื่น'}</small></button>`).join('') || '<span class="muted">ไม่มีการแข่งวันนี้</span>'}</div>`}
+    ${ci ? `<button class="btn danger block" id="cout" style="margin-top:12px">เลิกงาน / ออกจากจุด</button>` : ''}
+  </div>`;
+  if ($('#cin')) $('#cin').onclick = async () => { await api('checkin', {}).catch(e=>toast(e.message)); viewCheckin(); };
+  if ($('#cs')) $('#cs').onclick = async e => { const b=e.target.closest('[data-s]'); if(!b) return; await api('checkin', {sport:b.dataset.s, venue:b.dataset.v}).then(()=>toast('เช็กอินแล้ว')).catch(e=>toast(e.message)); viewCheckin(); };
+  if ($('#cout')) $('#cout').onclick = async () => { await api('checkout').catch(e=>toast(e.message)); viewCheckin(); };
+}
+
+/* ---------- mine ---------- */
+async function viewMine(){
+  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
+  const load_ = async () => {
+    const list = await api('mySubmissions').catch(e=>({error:e.message}));
+    if (list.error) return $('#app').innerHTML = `<div class="err">${esc(list.error)}</div>`;
+    const ret = list.filter(s=>s.status==='RETURNED').length;
+    const mb = $('#mBadge'); if (mb){ mb.hidden = !ret; mb.textContent = ret; }
+    $('#app').innerHTML = `<div class="card"><h2>รายการที่ฉันส่งวันนี้ (${list.length})</h2>
+      ${list.length ? `<div class="list">${list.map(s=>`<div class="item"><div class="grow">
+        <div class="t">${esc(s.id)} · ${esc(s.sport)} คู่ที่ ${esc(s.matchNo)}</div>
+        <div class="m">ส่ง ${hm(s.submittedAt)} น.${s.claimName?' · รับโดย '+esc(s.claimName):''}${s.enteredAt?' · ป้อน '+hm(s.enteredAt)+' น.':''}</div>
+        ${s.status==='RETURNED'?`<div class="err" style="margin-top:6px">ตีกลับโดย ${esc(s.returnedBy)}: ${esc(s.returnReason)}</div>
+          <label class="btn sm pri" style="margin-top:6px" for="rs-${esc(s.id)}">📷 ถ่ายรูปใหม่แล้วส่ง</label><input type="file" accept="image/*" capture="environment" hidden id="rs-${esc(s.id)}" data-id="${esc(s.id)}">`:''}
+        </div><span class="status st-${s.status}">${ST[s.status]}</span></div>`).join('')}</div>` : '<p class="muted">ยังไม่มี</p>'}</div>`;
+    document.querySelectorAll('input[data-id]').forEach(inp => inp.onchange = async e => {
+      const f = e.target.files[0]; if(!f) return;
+      toast('กำลังส่งรูปใหม่…');
+      try{ await api('resubmit', {id:inp.dataset.id, photos:[await shrink(f)]}, {retries:2}); toast('ส่งใหม่แล้ว'); }catch(err){ toast(err.message, 4000); }
+      load_();
+    });
+  };
+  await load_();
+  every(30000, load_);
+}
+
+/* ---------- queue (center) ---------- */
+let qFilter = 'SUBMITTED';
+async function viewQueue(){
+  $('#app').innerHTML = `<div class="toolbar">
+      <div class="pills" id="qf"></div><span class="grow"></span>
+      <select id="qDate">${DAYS.concat(DAYS.includes(S.today)?[]:[S.today]).map(d=>`<option value="${d}" ${d===(S.qDate||S.today)?'selected':''}>${thDate(d)}</option>`).join('')}</select>
+      <button class="btn sm" id="qR">รีเฟรช</button></div>
+    <div class="split"><div class="card" style="padding:0"><div class="list" id="qList"></div></div><div id="qDet" class="sticky"></div></div>`;
+  $('#qDate').onchange = e => { S.qDate = e.target.value; S.sel=null; refreshQueue(); };
+  $('#qR').onclick = refreshQueue;
+  await refreshQueue();
+  every(15000, refreshQueue);
+}
+async function refreshQueue(){
+  let q;
+  try{ q = S.queue = await api('queue', {date:S.qDate||S.today}); }catch(e){ $('#qList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  const items = q.items, me = S.me.code;
+  const waiting = items.filter(s=>s.status==='SUBMITTED').length;
+  if (S.lastWaiting !== null && waiting > S.lastWaiting) beep();
+  S.lastWaiting = waiting;
+  document.title = (waiting?`(${waiting}) `:'') + 'คิวรับผล';
+  const qb = $('#qBadge'); if (qb){ qb.hidden=!waiting; qb.textContent=waiting; }
+  const F = [['SUBMITTED','รอรับ'],['MINE','ของฉัน'],['RETURNED','ตีกลับ'],['ENTERED','ป้อนแล้ว'],['ALL','ทั้งหมด']];
+  const cnt = k => k==='ALL'?items.length : k==='MINE'? items.filter(s=>s.status==='CLAIMED'&&s.claimCode===me).length : items.filter(s=>s.status===k).length;
+  $('#qf').innerHTML = F.map(([k,l])=>`<button class="pill ${qFilter===k?'on':''}" data-f="${k}">${l} <b>${cnt(k)}</b></button>`).join('');
+  $('#qf').onclick = e => { const b=e.target.closest('[data-f]'); if(b){ qFilter=b.dataset.f; refreshQueue(); } };
+  const shown = items.filter(s => qFilter==='ALL' || (qFilter==='MINE' ? (s.status==='CLAIMED'&&s.claimCode===me) : s.status===qFilter));
+  $('#qList').innerHTML = shown.length ? shown.map(s=>`<div class="item ${S.sel===s.id?'sel':''}" data-id="${esc(s.id)}"><div class="grow">
+      <div class="t">${esc(s.id)} · ${esc(s.sport)} คู่ที่ ${esc(s.matchNo)} ${s.duplicateOf?'<span class="tag red">ซ้ำกับ '+esc(s.duplicateOf)+'</span>':''}${s.resubmitCount?'<span class="tag">ส่งใหม่</span>':''}${s.isTest?'<span class="tag">ทดสอบ</span>':''}</div>
+      <div class="m">${esc(s.fieldName)} · ${hm(s.submittedAt)} น.${s.claimName?' · '+esc(s.claimName):''}</div></div>
+      <span class="status st-${s.status}">${ST[s.status]}</span></div>`).join('') : `<div class="center-msg">ไม่มีรายการ</div>`;
+  $('#qList').onclick = e => { const it=e.target.closest('[data-id]'); if(it){ S.sel=it.dataset.id; refreshQueueSel(); } };
+  refreshQueueSel();
+}
+function refreshQueueSel(){
+  document.querySelectorAll('#qList .item').forEach(el=>el.classList.toggle('sel', el.dataset.id===S.sel));
+  const s = S.queue && S.queue.items.find(x=>x.id===S.sel);
+  const box = $('#qDet');
+  if (!s){ box.innerHTML = `<div class="card center-msg">เลือกรายการทางซ้ายเพื่อดูรูปฟอร์ม</div>`; return; }
+  const me = S.me.code, admin = S.me.role==='admin';
+  const mineClaim = s.status==='CLAIMED' && (s.claimCode===me || admin);
+  const sig = [s.id,s.status,s.claimCode,s.photoCount,s.resubmitCount,s.verifiedBy].join('|');
+  if (box.dataset.sig === sig) return;  // ไม่ต้องวาดใหม่ถ้าไม่มีอะไรเปลี่ยน (รูปไม่กระพริบ)
+  box.dataset.sig = sig;
+  box.innerHTML = `<div class="card">
+    <div class="hrow"><h2 style="margin:0">${esc(s.id)} · ${esc(s.sport)} คู่ที่ ${esc(s.matchNo)}</h2><span class="status st-${s.status}">${ST[s.status]}</span></div>
+    <dl class="kv"><dt>ผู้ส่ง</dt><dd>${esc(s.fieldName)} · ${hm(s.submittedAt)} น.</dd><dt>สนาม</dt><dd>${esc(s.venue||'-')}</dd>
+      ${s.claimName?`<dt>ผู้รับ</dt><dd>${esc(s.claimName)} · ${hm(s.claimedAt)} น.</dd>`:''}
+      ${s.enteredName?`<dt>ป้อน กกท.</dt><dd>${esc(s.enteredName)} · ${hm(s.enteredAt)} น.</dd>`:''}
+      ${s.verifiedBy?`<dt>ตรวจทาน</dt><dd>${esc(s.verifiedBy)} · ${hm(s.verifiedAt)} น.</dd>`:''}
+      ${s.returnReason?`<dt>ตีกลับ</dt><dd>${esc(s.returnReason)} (${esc(s.returnedBy)})</dd>`:''}
+      ${s.duplicateOf?`<dt>คำเตือน</dt><dd class="tag red">คู่นี้ส่งซ้ำกับ ${esc(s.duplicateOf)} — ตรวจว่าคู่ที่ถูกต้อง</dd>`:''}</dl>
+    <div class="row" id="pTabs">${Array.from({length:s.photoCount},(_,i)=>`<button class="btn sm" data-p="${i}">รูป ${i+1}</button>`).join('')}<button class="btn sm" id="rot">⟳ หมุน</button></div>
+    <div class="photo-box" id="pBox" style="margin-top:8px"><div class="spin"></div></div>
+    <div class="row" style="margin-top:12px">
+      ${s.status==='SUBMITTED'?`<button class="btn pri" data-a="claim">รับรายการนี้</button>`:''}
+      ${mineClaim?`<button class="btn good" data-a="entered">ป้อน กกท. แล้ว</button><button class="btn" data-a="release">คืนคิว</button>`:''}
+      ${(s.status==='SUBMITTED'||mineClaim)?`<button class="btn danger" data-a="return">ตีกลับ</button>`:''}
+      ${s.status==='ENTERED'&&S.queue.verifyEnabled&&!s.verifiedBy&&(s.enteredBy!==me||admin)?`<button class="btn" data-a="verify">ตรวจทานแล้ว</button>`:''}
+      ${s.status==='ENTERED'&&admin?`<button class="btn danger" data-a="return">ตีกลับ (ผู้ดูแล)</button>`:''}
+    </div></div>`;
+  let rot = 0, cur = 0;
+  const show = async i => {
+    cur = i; const key = s.id+'#'+i+'#'+s.resubmitCount;
+    $('#pBox').innerHTML = '<div class="spin"></div>';
+    try{
+      if (!S.photoCache[key]){ const p = await api('photo', {id:s.id, index:i}); S.photoCache[key] = `data:${p.mime};base64,${p.base64}`; }
+      if (S.sel!==s.id) return;
+      $('#pBox').innerHTML = `<img src="${S.photoCache[key]}" style="transform:rotate(${rot}deg)">`;
+      $('#pBox img').onclick = () => zoom(S.photoCache[key], rot);
+    }catch(e){ $('#pBox').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  };
+  if (s.photoCount) show(0); else $('#pBox').innerHTML='<span class="muted">ไม่มีรูป</span>';
+  $('#pTabs').onclick = e => { const b=e.target.closest('[data-p]'); if(b) show(+b.dataset.p); };
+  $('#rot').onclick = () => { rot=(rot+90)%360; const im=$('#pBox img'); if(im) im.style.transform=`rotate(${rot}deg)`; };
+  box.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
+    const a = b.dataset.a; let body = {id:s.id};
+    if (a==='return'){
+      const r = await reasonDlg(); if (!r) return; body.reason = r;
+    }
+    if (a==='entered' && !await confirmDlg('ยืนยันป้อนผลแล้ว', `ป้อน <b>${esc(s.sport)} คู่ที่ ${esc(s.matchNo)}</b> ในระบบ กกท. เรียบร้อยแล้ว?`, 'ยืนยัน')) return;
+    b.disabled = true;
+    try{ await api({claim:'claim',release:'release',entered:'entered',return:'returnSub',verify:'verify'}[a], body); toast('บันทึกแล้ว'); if (a==='claim') qFilter='MINE'; }
+    catch(e){ toast(e.message, 4000); }
+    box.dataset.sig=''; await refreshQueue(); box.scrollIntoView({block:'start',behavior:'smooth'});
+  });
+}
+function zoom(src, rot){
+  const o = document.createElement('div'); o.className='overlay';
+  o.innerHTML = `<button class="btn close">ปิด ✕</button><img src="${src}" style="transform:rotate(${rot}deg)">`;
+  o.onclick = e => { if (e.target.tagName!=='IMG') o.remove(); };
+  document.body.appendChild(o);
+}
+function beep(){ try{ const c=new (window.AudioContext||window.webkitAudioContext)(); const o=c.createOscillator(); const g=c.createGain(); o.frequency.value=880; g.gain.value=.08; o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{o.stop();c.close();},180);}catch(e){} }
+
+/* ---------- dashboard ---------- */
+async function viewDash(){
+  $('#app').innerHTML = `<div class="toolbar"><select id="dDate">${DAYS.concat(DAYS.includes(S.today)?[]:[S.today]).map(d=>`<option value="${d}" ${d===S.dashDate?'selected':''}>${thDate(d)}</option>`).join('')}</select>
+    <button class="btn sm" id="dR">รีเฟรช</button><span class="small muted" id="dAt"></span></div><div id="dBody"><div class="center-msg"><div class="spin"></div></div></div>`;
+  $('#dDate').onchange = e => { S.dashDate = e.target.value; refreshDash(); };
+  $('#dR').onclick = refreshDash;
+  await refreshDash();
+  every(30000, refreshDash);
+}
+async function refreshDash(){
+  let d; try{ d = await api('dashboard', {date:S.dashDate}); }catch(e){ $('#dBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  $('#dAt').textContent = 'อัปเดต ' + hm(d.generatedAt) + ' น. · รีเฟรชเองทุก 30 วินาที';
+  const sm = d.summary, P = Object.fromEntries(d.people.map(p=>[p.code,p]));
+  const remaining = sm.sportsTotal - sm.sportsComplete;
+  const tile = (l,v,cls='',sub='') => `<div class="tile ${cls}"><div class="l">${l}</div><div class="v">${v}${sub?` <small>${sub}</small>`:''}</div></div>`;
+  const sports = d.sports.slice().sort((a,b)=> (a.complete-b.complete) || (b.overdue.length-a.overdue.length) || a.group.localeCompare(b.group,'th') || a.sport.localeCompare(b.sport,'th'));
+  const seg = s => { const T = Math.max(s.total||0, s.submitted); if (!T) return `<div class="seg" title="ยังไม่มีข้อมูลจำนวนคู่"><span class="s-left" style="flex:1"></span></div>`;
+    const parts = [['s-done',s.entered],['s-pend',s.pendingEntry],['s-left',Math.max(0,T-s.submitted)]].filter(p=>p[1]>0);
+    return `<div class="seg" title="ป้อนแล้ว ${s.entered} · รอป้อน ${s.pendingEntry} · ยังไม่ส่ง ${Math.max(0,T-s.submitted)}">${parts.map(([c,v])=>`<span class="${c}" style="flex:${v}"></span>`).join('')}</div>`; };
+  const nm = c => P[c] ? esc(c+' '+P[c].name.replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,'')) : esc(c);
+  const per = (role) => d.people.filter(p=>p.role===role).sort((a,b)=>(a.group||'').localeCompare(b.group||'','th')||a.code.localeCompare(b.code));
+  const personRow = p => { const t = d.perPerson[p.code]||{};
+    return `<tr><td><span class="dot d-${p.status}"></span>${nm(p.code)}${p.group?` <span class="tag">${esc(p.group)}</span>`:''}</td>
+      <td class="small">${p.status==='in'?esc(p.at||'')+' · '+hm(p.since):p.status==='out'?'ออกแล้ว '+hm(p.since):'<span style="color:var(--crit-ink)">ยังไม่เช็กอิน</span>'}</td>
+      <td class="small">${p.role==='field'?(t.sent||0)+' ส่ง':(t.claimed||0)+' รับ / '+(t.entered||0)+' ป้อน'}</td>
+      <td>${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}</td></tr>`; };
+  const groups = [...new Set(per('field').map(p=>p.group))];
+  $('#dBody').innerHTML = `
+    <div class="tiles">
+      ${tile('ชนิดกีฬารอผล', remaining, remaining?'':'', `/ ${sm.sportsTotal}`)}
+      ${tile('ผลค้าง (เลยเวลา)', sm.overdue, sm.overdue?'alert':'')}
+      ${tile('⏳ รอศูนย์รับ', sm.waitingClaim)}
+      ${tile('✍️ กำลังป้อน', sm.inProgress)}
+      ${tile('✅ ป้อน กกท. แล้ว', sm.entered)}
+      ${tile('ภาคสนามเช็กอิน', sm.fieldIn, '', `/ ${sm.fieldOnDuty}`)}
+      ${tile('ศูนย์เช็กอิน', sm.centerIn, '', `/ ${sm.centerOnDuty}`)}
+    </div>
+    <div class="card"><h2>ความคืบหน้ารายชนิดกีฬา</h2>
+      <div class="small muted" style="margin-bottom:6px"><span class="dot" style="background:var(--good)"></span>ป้อนแล้ว <span class="dot" style="background:var(--warn);margin-left:10px"></span>ส่งแล้วรอป้อน <span class="dot" style="background:var(--line)"></span>ยังไม่ส่ง</div>
+      <div class="tbl-wrap"><table><thead><tr><th>ชนิดกีฬา</th><th>กลุ่ม</th><th>ความคืบหน้า</th><th>ส่ง/ทั้งหมด</th><th>สถานะ</th><th>อยู่หน้างาน</th></tr></thead><tbody>
+      ${sports.map(s=>`<tr><td><b>${esc(s.sport)}</b><div class="small muted">${esc(s.venue)}</div></td><td>${esc(s.group)}</td>
+        <td>${seg(s)}</td>
+        <td>${s.submitted} / ${s.total ?? '?'}${s.hasMatchList?'':'<div class="small muted">'+(s.closed?'ปิดแล้ว':'ยังไม่มีตารางคู่')+'</div>'}</td>
+        <td>${s.complete?'<span class="tag green">✅ ครบ</span>':''}${s.overdue.map(o=>`<span class="tag red">⚠️ คู่ ${esc(o.matchNo)} (${esc(o.startTime)})</span>`).join('')}${s.returned?`<span class="tag red">↩️ ตีกลับ ${s.returned}</span>`:''}</td>
+        <td class="small">${s.onSite.map(nm).join('<br>') || '<span class="muted">—</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">ไม่มีการแข่งวันนี้</td></tr>'}
+      </tbody></table></div></div>
+    <div class="people">
+      <div class="card"><h2>ศูนย์ป้อนข้อมูล</h2><table><tbody>${per('center').map(personRow).join('') || '<tr><td class="muted">ไม่มีเวร</td></tr>'}</tbody></table></div>
+      ${groups.map(g=>`<div class="card"><h2>ภาคสนาม กลุ่ม ${esc(g)}</h2><table><tbody>${per('field').filter(p=>p.group===g).map(personRow).join('')}</tbody></table></div>`).join('')}
+    </div>`;
+}
+
+/* ---------- admin ---------- */
+async function viewAdmin(){
+  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
+  let d; try{ d = await api('adminData'); }catch(e){ $('#app').innerHTML=`<div class="err">${esc(e.message)}</div>`; return; }
+  const bound = d.staff.filter(s=>s.binding&&s.binding.status==='active').length;
+  const pend = d.staff.filter(s=>s.binding&&s.binding.status==='pending');
+  $('#app').innerHTML = `
+    ${d.props.DEV_MODE?'<div class="err" style="margin-bottom:12px">DEV_MODE เปิดอยู่ — ปิด (ตั้งเป็น false) ก่อนใช้งานจริง</div>':''}
+    ${d.props.DEMO_DATE?`<div class="hint" style="margin-bottom:12px">โหมดทดสอบ: ระบบถือว่าวันนี้คือ ${thDate(d.props.DEMO_DATE)} · ลบค่า DEMO_DATE ในชีต Config ก่อนวันงาน</div>`:''}
+    <div class="tiles">
+      <div class="tile"><div class="l">ผูกบัญชีแล้ว</div><div class="v">${bound} <small>/ ${d.staff.length}</small></div></div>
+      <div class="tile ${pend.length?'alert':''}"><div class="l">รออนุมัติ</div><div class="v">${pend.length}</div></div>
+      <div class="tile"><div class="l">รายการทดสอบ</div><div class="v">${d.testCount}</div></div>
+      <div class="tile"><div class="l">ผู้ดูแล</div><div class="v">${d.admins.length}</div></div>
+    </div>
+    ${d.badMatches.length?`<div class="card"><h2>⚠️ ตารางคู่ที่ไม่ตรงกับชนิดกีฬา-วัน</h2><p class="small muted">แถวในชีต Matches ที่ชื่อกีฬาหรือวันที่ไม่ตรงกับชีต SportDays (ระบบจะไม่แสดงให้ นศ.เลือก)</p>
+      <table><tbody>${d.badMatches.map(m=>`<tr><td>แถว ${m.row}</td><td>${esc(m.date)}</td><td>${esc(m.sport)}</td><td>คู่ ${esc(m.matchNo)}</td></tr>`).join('')}</tbody></table></div>`:''}
+    <div class="card"><div class="hrow"><h2 style="margin:0">สถานะการผูกบัญชี</h2>
+      <button class="btn sm danger" id="clr" ${d.testCount?'':'disabled'}>ลบรายการทดสอบ (${d.testCount})</button></div>
+      <div class="tbl-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>สถานะ</th><th>ชื่อ LINE</th><th></th></tr></thead><tbody>
+      ${d.staff.sort((a,b)=>((a.binding?.status==='pending')?0:1)-((b.binding?.status==='pending')?0:1) || (a.binding?1:0)-(b.binding?1:0) || a.code.localeCompare(b.code)).map(s=>`<tr>
+        <td>${esc(s.code)}</td><td>${esc(s.name)}${s.hasPhone?'':' <span class="tag red">ไม่มีเบอร์</span>'}</td>
+        <td>${!s.binding?'<span class="muted">ยังไม่ผูก</span>':s.binding.status==='active'?'<span class="tag green">ผูกแล้ว</span>':'<span class="tag red">รออนุมัติ</span>'}</td>
+        <td class="small">${esc(s.binding?.lineName||'')}</td>
+        <td>${s.binding?.status==='pending'?`<button class="btn sm good" data-ap="${esc(s.binding.userId)}">อนุมัติ</button> `:''}${s.binding?`<button class="btn sm" data-ub="${esc(s.binding.userId)}" data-c="${esc(s.code)}">ยกเลิกการผูก</button>`:''}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  $('#app').onclick = async e => {
+    const ap = e.target.closest('[data-ap]'), ub = e.target.closest('[data-ub]');
+    if (ap){ await api('adminApprove', {userId:ap.dataset.ap}).catch(x=>toast(x.message)); viewAdmin(); }
+    if (ub && await confirmDlg('ยกเลิกการผูกบัญชี?', `${esc(ub.dataset.c)} จะต้องลงทะเบียนใหม่`, 'ยกเลิกการผูก')){ await api('adminUnbind', {userId:ub.dataset.ub}).catch(x=>toast(x.message)); viewAdmin(); }
+  };
+  $('#clr').onclick = async () => { if (await confirmDlg('ลบรายการทดสอบทั้งหมด?', `${d.testCount} รายการและรูปที่แนบจะถูกลบ`, 'ลบ')){ const r = await api('adminClearTests').catch(x=>toast(x.message)); if(r) toast('ลบแล้ว '+r.removed+' รายการ'); viewAdmin(); } };
+}
+
+/* ---------- dialogs ---------- */
+function dlg(html){ const d=$('#dlg'); d.innerHTML=html; d.showModal(); return d; }
+function confirmDlg(title, body, okTxt='ตกลง', cancelTxt='ยกเลิก'){
+  return new Promise(res => { const d = dlg(`<h2>${title}</h2><p>${body}</p><div class="row"><button class="btn" id="dn">${cancelTxt}</button><button class="btn pri" id="dy">${okTxt}</button></div>`);
+    $('#dy').onclick=()=>{d.close();res(true)}; $('#dn').onclick=()=>{d.close();res(false)}; d.oncancel=()=>res(false); });
+}
+function promptDlg(title, label, type='text'){
+  return new Promise(res => { const d = dlg(`<h2>${title}</h2><label class="f">${label}</label><input id="pv" type="${type}" inputmode="${type==='number'?'numeric':'text'}"><div class="row" style="margin-top:12px"><button class="btn" id="dn">ยกเลิก</button><button class="btn pri" id="dy">ตกลง</button></div>`);
+    $('#pv').focus(); $('#dy').onclick=()=>{ const v=$('#pv').value.trim(); if(!v) return; d.close(); res(v); }; $('#dn').onclick=()=>{d.close();res(null)}; d.oncancel=()=>res(null); });
+}
+function reasonDlg(){
+  return new Promise(res => { const d = dlg(`<h2>ตีกลับให้ภาคสนาม</h2><div class="pills" id="rr">${RETURN_REASONS.map(r=>`<button class="pill" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>
+    <label class="f">หรือระบุเอง</label><input id="rv" type="text"><div class="row" style="margin-top:12px"><button class="btn" id="dn">ยกเลิก</button><button class="btn danger" id="dy">ตีกลับ</button></div>`);
+    $('#rr').onclick=e=>{ const b=e.target.closest('[data-r]'); if(b) $('#rv').value=b.dataset.r; };
+    $('#dy').onclick=()=>{ const v=$('#rv').value.trim(); if(!v) return; d.close(); res(v); }; $('#dn').onclick=()=>{d.close();res(null)}; d.oncancel=()=>res(null); });
+}
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && S.me.bound && ['queue','dash','mine'].includes(S.tab)) route(); });
+boot();
+</script>
+</body>
+</html>
