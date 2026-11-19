@@ -125,6 +125,8 @@ a{color:var(--accent)}
 .daychip.on{border-color:var(--accent);background:var(--accent);color:#fff}.daychip.on small{color:#e3ecfa}
 .yes{color:var(--good-ink);font-weight:600;white-space:nowrap}.no{color:var(--crit-ink);font-weight:600;white-space:nowrap}.warn{color:var(--warn-ink);font-weight:600}
 .bigline{font-size:17px;margin-top:8px}
+.actbar{margin:8px -16px 0;padding:8px 16px;background:var(--warn-weak);color:var(--warn-ink);font-size:13px;line-height:1.5}
+.actbar .btn{margin-left:6px;vertical-align:middle}
 .att td:first-child{width:52%}
 .acts{display:flex;gap:14px;align-items:baseline;font-size:13px;margin-top:2px}
 .linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:13px;white-space:nowrap}
@@ -140,6 +142,7 @@ a{color:var(--accent)}
     <div class="who" id="who"></div>
     <div class="row" style="gap:6px"><span class="chip demo" id="demoChip" hidden>โหมดทดสอบ</span><span class="chip" id="dateChip"></span></div>
   </div>
+  <div id="actBar" class="actbar" hidden></div>
   <nav id="tabs"></nav>
 </header>
 <main id="app"><div class="center-msg"><div class="spin"></div>กำลังเปิดระบบ…</div></main>
@@ -160,7 +163,10 @@ const RETURN_REASONS = ['รูปไม่ชัด อ่านคะแนน
 const ST = {SUBMITTED:'⏳ รอรับ', CLAIMED:'✍️ กำลังป้อน', ENTERED:'✅ ป้อน กกท. แล้ว', RETURNED:'↩️ ตีกลับ'};
 const DAYS = ['2026-12-04','2026-12-05','2026-12-06','2026-12-07','2026-12-08','2026-12-09','2026-12-10','2026-12-11','2026-12-12','2026-12-13'];
 
-const S = { me:null, today:null, demo:false, tab:null, myDay:null, draft:null, queue:null, sel:null, photoCache:{}, dashDate:null, timers:[], lastWaiting:null };
+const S = { me:null, today:null, demo:false, tab:null, myDay:null, draft:null, queue:null, sel:null, photoCache:{}, dashDate:null, timers:[], lastWaiting:null,
+  act: load('actAs') }; // ผู้ดูแลดูในมุมภาคสนาม/ศูนย์: {role:'field'|'center', group}
+// บทบาทที่ใช้แสดงหน้าจอ: ผู้ดูแลที่เปิดโหมดดูในมุมผู้ใช้ → บทบาทนั้น (สิทธิ์ฝั่ง server ยังเป็นผู้ดูแล)
+const R = () => (S.me && S.me.role==='admin' && S.act) ? S.act.role : (S.me && S.me.role);
 
 /* ---------- utils ---------- */
 const $ = s => document.querySelector(s);
@@ -179,6 +185,7 @@ let idToken = null;
 async function api(action, body={}, opts={}){
   const payload = Object.assign({action}, body);
   if (DEV) payload.devUser = DEV; else payload.idToken = idToken;
+  if (S.act){ payload.actAs = S.act.role; payload.actGroup = S.act.group || ''; } // server ใช้เฉพาะบัญชีผู้ดูแล
   let lastErr;
   const tries = opts.retries ?? 2;
   for (let i=0;i<=tries;i++){
@@ -219,20 +226,31 @@ async function boot(){
 function route(){
   const me = S.me;
   if (!me.bound){ $('#hdr').hidden = true; return me.pending ? viewPending() : viewBind(); }
+  if (S.act && me.role!=='admin'){ S.act = null; store('actAs'); } // เครื่องที่เคยใช้บัญชีผู้ดูแล
   $('#hdr').hidden = false;
+  const actBar = $('#actBar');
+  actBar.hidden = !S.act;
+  if (S.act) actBar.innerHTML = `👁 ผู้ดูแลกำลังดูในมุม <b>${S.act.role==='center'?'ศูนย์ป้อนข้อมูล':'ภาคสนาม กลุ่ม '+esc(S.act.group)}</b> · ทุกอย่างบันทึกในชื่อผู้ดูแล${S.demo?'':' · <b>วันนี้ไม่ใช่วันทดสอบ ผลที่ส่งนับเป็นผลจริง</b>'}
+    <div class="row" style="margin-top:6px"><button class="btn sm" id="actSwap">${S.act.role==='center'?'สลับไปภาคสนาม กลุ่ม '+esc(S.act.last||'ก'):'สลับไปศูนย์'}</button><button class="btn sm" id="actExit">กลับเป็นผู้ดูแล</button></div>`;
+  if (S.act){
+    $('#actExit').onclick = () => setAct(null);
+    $('#actSwap').onclick = () => setAct(S.act.role==='center' ? {role:'field', group:S.act.last||'ก'} : {role:'center', group:'', last:S.act.group});
+  }
   $('#who').innerHTML = `${esc(me.code==='ADMIN' ? 'ผู้ดูแลระบบ' : me.code==='VIEWER' ? me.name : me.code+' · '+me.name)}<small>${{field:'ภาคสนาม'+(me.group?' กลุ่ม '+me.group:''),center:'ศูนย์ป้อนข้อมูล',admin:'ผู้ดูแล',viewer:'เจ้าหน้าที่ · ดูอย่างเดียว'}[me.role]||''}${me.sub?` · <b style="color:var(--warn-ink)">วันนี้มาแทน ${esc(me.sub.replacesName)}</b>`:''}${me.lineName?' · LINE: '+esc(me.lineName):''}</small>`;
   $('#dateChip').textContent = thDate(S.today);
   $('#demoChip').hidden = !S.demo;
   // ภาคสนาม/ศูนย์เห็นเฉพาะหน้าของตัวเอง เรียงตามลำดับงานพร้อมเลขขั้น · ขั้นที่ทำแล้วขึ้น ✓
-  const ok1 = S.checkin ? ' ✓' : '';
+  // โหมดดูในมุมผู้ใช้: ผู้ดูแลเช็กอินได้จุดเดียว → ✓ เฉพาะเมื่อจุดตรงกับฝั่งที่กำลังดู
+  const atCenter = S.checkin && S.checkin.sport === 'ศูนย์ป้อนข้อมูล';
+  const ok1 = S.checkin && (!S.act || (S.act.role==='center') === atCenter) ? ' ✓' : '';
   const tabs = {
     field:  [['checkin','① เช็กอิน'+ok1],['submit','② ส่งผล'],['mine','③ ติดตามผล'],['help','❓ วิธีใช้']],
     center: [['checkin','① เข้าศูนย์'+ok1],['queue','② คิวรับผล'],['help','❓ วิธีใช้']],
     admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['attend','การมาทำงาน'],['admin','ผู้ดูแล'],['submit','ส่งผล'],['help','❓ วิธีใช้']],
     viewer: [['dash','ภาพรวม'],['help','❓ วิธีใช้']],
-  }[me.role] || [['help','❓ วิธีใช้']];
+  }[R()] || [['help','❓ วิธีใช้']];
   const want = qs.get('tab');
-  const first = me.role==='field' ? (S.checkin?'submit':'checkin') : me.role==='center' ? (S.checkin?'queue':'checkin') : tabs[0][0];
+  const first = R()==='field' ? (S.checkin?'submit':'checkin') : R()==='center' ? (S.checkin?'queue':'checkin') : tabs[0][0];
   if (!S.tab || !tabs.some(t=>t[0]===S.tab)) S.tab = tabs.some(t=>t[0]===want) ? want : first;
   $('#tabs').innerHTML = tabs.map(([k,l])=>`<button data-k="${k}" class="${k===S.tab?'on':''}">${l}${k==='queue'?'<span class="badge" id="qBadge" hidden></span>':''}${k==='mine'?'<span class="badge" id="mBadge" hidden></span>':''}</button>`).join('');
   $('#tabs').onclick = e => { const b=e.target.closest('button'); if(b){ S.tab=b.dataset.k; route(); } };
@@ -241,6 +259,14 @@ function route(){
   ({submit:viewSubmit, checkin:viewCheckin, mine:viewMine, queue:viewQueue, dash:viewDash, attend:viewAttend, admin:viewAdmin, help:viewHelp})[S.tab]();
 }
 function go(tab){ S.tab = tab; route(); window.scrollTo(0,0); }
+// เปิด/ปิดโหมดดูในมุมผู้ใช้ (ผู้ดูแล) · ล้างข้อมูลที่จำไว้ของมุมเดิม แล้วถามสถานะเช็กอินใหม่
+async function setAct(act){
+  S.act = act; store('actAs', act || undefined);
+  S.myDay = null; S.myDayAt = 0; S.mine = null; S.queue = null; S.sel = null; S.draft = null; store('draft');
+  S.tab = act ? null : 'admin';
+  try{ const d = await api('me'); S.checkin = d.checkin; S.demo = d.demo; }catch(e){ toast(e.message); }
+  route(); window.scrollTo(0,0);
+}
 
 /* ---------- bind ---------- */
 function viewBind(){
@@ -286,7 +312,7 @@ function newDraft(){ return {clientKey:uuid(), sport:'', matchNo:'', photos:[]};
 // แสดงข้อมูลเดิมทันที (ถ้ามี) แล้วค่อยดึงใหม่เบื้องหลัง · วาดใหม่เฉพาะเมื่อข้อมูลเปลี่ยน
 async function loadMyDay(onChange){
   const before = JSON.stringify(S.myDay);
-  try{ S.myDay = await api('myDay'); S.myDayAt = Date.now(); if (S.me.role!=='admin') S.checkin = S.myDay.checkin; }
+  try{ S.myDay = await api('myDay'); S.myDayAt = Date.now(); if (S.me.role!=='admin' || S.act) S.checkin = S.myDay.checkin; }
   catch(e){ if (!S.myDay) throw e; toast(e.message); return; }
   if (JSON.stringify(S.myDay) !== before) onChange();
 }
@@ -307,7 +333,7 @@ function renderSubmit(showOther){
   const ms = dr.sport ? (d.matches[dr.sport]||[]) : [];
   const sd = [...d.sports, ...d.otherSports].find(s=>s.sport===dr.sport);
   $('#app').innerHTML = `
-  ${S.me.role==='field' && !S.checkin ? `<div class="card warnbox"><b>ยังไม่ได้เช็กอิน</b> ทำขั้นที่ ① ก่อน เพื่อให้ศูนย์รู้ว่าคุณอยู่สนามไหน <button class="btn sm" onclick="go('checkin')" style="margin-left:6px">ไปเช็กอิน</button></div>` : ''}
+  ${R()==='field' && !S.checkin ? `<div class="card warnbox"><b>ยังไม่ได้เช็กอิน</b> ทำขั้นที่ ① ก่อน เพื่อให้ศูนย์รู้ว่าคุณอยู่สนามไหน <button class="btn sm" onclick="go('checkin')" style="margin-left:6px">ไปเช็กอิน</button></div>` : ''}
   <div class="card">
     ${stepHead('②', 'ส่งผลการแข่งขัน', 'ทำทุกครั้งที่จบ 1 คู่ และกรรมการเซ็นฟอร์มแล้ว')}
     ${d.onDuty ? '' : `<div class="hint">วันนี้คุณไม่มีชื่อในตารางเวรภาคสนาม หากมาช่วยงาน เลือกชนิดกีฬาจาก "กีฬาอื่นวันนี้" ได้</div>`}
@@ -409,7 +435,7 @@ async function closeSport(sd){
 
 /* ---------- check-in ---------- */
 async function viewCheckin(){
-  const isCenter = S.me.role==='center';
+  const isCenter = R()==='center';
   const render = () => {
     const ci = S.checkin;
     const d = S.myDay;
@@ -537,7 +563,7 @@ function refreshQueueSel(){
   const s = S.queue && S.queue.items.find(x=>x.id===S.sel);
   const box = $('#qDet');
   if (!s){ box.innerHTML = `<div class="card center-msg">เลือกรายการทางซ้ายเพื่อดูรูปฟอร์ม</div>`; return; }
-  const me = S.me.code, admin = S.me.role==='admin';
+  const me = S.me.code, admin = S.me.role==='admin' && !S.act; // โหมดดูในมุมศูนย์: ซ่อนปุ่มเฉพาะผู้ดูแล
   const mineClaim = s.status==='CLAIMED' && (s.claimCode===me || admin);
   const sig = [s.id,s.status,s.claimCode,s.photoCount,s.resubmitCount,s.verifiedBy].join('|');
   if (box.dataset.sig === sig) return;  // ไม่ต้องวาดใหม่ถ้าไม่มีอะไรเปลี่ยน (รูปไม่กระพริบ)
@@ -766,6 +792,13 @@ async function viewAdmin(){
       <div class="tile"><div class="l">รายการทดสอบ</div><div class="v">${d.testCount}</div></div>
       <div class="tile"><div class="l">ผู้ดูแล</div><div class="v">${d.admins.length}</div></div>
     </div>
+    <div class="card"><h2>ทดสอบในมุมผู้ใช้</h2>
+      <p class="small muted">ดูและใช้งานแบบที่ นศ. เห็น (เช็กอิน → ส่งผล → ติดตามผล / เข้าศูนย์ → คิวรับผล) ด้วยบัญชีผู้ดูแล · ทุกอย่างบันทึกในชื่อ "ผู้ดูแล" · สลับฝั่งได้ตลอด แล้วกด "กลับเป็นผู้ดูแล" ที่แถบสีเหลืองด้านบน</p>
+      ${S.demo?'':`<div class="err" style="margin-bottom:8px">วันนี้ไม่ใช่วันทดสอบ ผลที่ส่งจะนับเป็นผลจริงบนภาพรวม — สร้างวันทดสอบด้านล่างก่อน</div>`}
+      <div class="small" style="margin-bottom:6px"><b>ภาคสนาม</b> (เห็นกีฬาของกลุ่มที่เลือก)</div>
+      <div class="row" style="margin-bottom:10px">${['ก','ข','ค','ง'].map(g=>`<button class="btn sm" data-act="field" data-g="${g}">กลุ่ม ${g}</button>`).join('')}</div>
+      <button class="btn sm block" data-act="center">ศูนย์ป้อนข้อมูล</button>
+    </div>
     <div class="card"><h2>เจ้าหน้าที่ดูภาพรวม (${d.viewers.length})</h2>
       <p class="small muted">ผู้ที่ไม่ใช่ นศ. ขอสิทธิ์จากหน้าลงทะเบียน → อนุมัติแล้วเห็นเฉพาะแท็บภาพรวม แก้ไขข้อมูลไม่ได้</p>
       ${d.viewers.length ? `<div class="tbl-wrap"><table><tbody>${d.viewers.sort((a,b)=>(a.status==='pending'?0:1)-(b.status==='pending'?0:1)).map(v=>`<tr>
@@ -792,6 +825,8 @@ async function viewAdmin(){
         <td>${s.binding?.status==='pending'?`<button class="btn sm good" data-ap="${esc(s.binding.userId)}">อนุมัติ</button> `:''}${s.binding?`<button class="btn sm" data-ub="${esc(s.binding.userId)}" data-c="${esc(s.code)}">ยกเลิกการผูก</button>`:''}</td></tr>`).join('')}
       </tbody></table></div></div>`;
   $('#app').onclick = async e => {
+    const ac = e.target.closest('[data-act]');
+    if (ac){ setAct({role: ac.dataset.act, group: ac.dataset.g || ''}); return; }
     const ap = e.target.closest('[data-ap]'), ub = e.target.closest('[data-ub]'), tr = e.target.closest('[data-tdrm]');
     if (tr && await confirmDlg('ลบวันทดสอบ?', `เวร ชนิดกีฬาหลอก ตารางคู่ เช็กอิน และรายการที่ส่งของวันที่ ${thDate(tr.dataset.tdrm)} จะถูกลบทั้งหมด`, 'ลบ')){
       const r = await api('adminTestDay', {op:'remove', date:tr.dataset.tdrm}).catch(x=>toast(x.message, 4000));
@@ -857,7 +892,8 @@ const HELP = {
   admin: ['ผู้ดูแล', `
     <h3>งานประจำวัน</h3><ul><li><b>การมาทำงาน</b>: เลือกวัน → ดูว่าใครมาแล้ว และอยู่ประจำตำแหน่งหรือยัง (ติ๊ก "แสดงเฉพาะคนที่ยังไม่ได้ประจำตำแหน่ง" เพื่อดูคนที่ต้องตาม)</li>
       <li><b>มีคนมาแทน</b>: หน้าการมาทำงาน → เลือกวัน → กด "ระบุคนแทน" ข้างชื่อเจ้าของเวร → เลือกคนแทน คนแทนจะได้หน้าจอและสิทธิ์ของตำแหน่งนั้นเฉพาะวันนั้น (ข้ามบทบาทได้ เช่น ภาคสนามมาแทนศูนย์) กด "ยกเลิกแทน" เพื่อคืนเวร · ระบุล่วงหน้าได้</li>
-      <li><b>ภาพรวม</b>: ดูผลค้าง (แดง) แล้วโทรหาภาคสนามของกลุ่มนั้น</li><li><b>ผู้ดูแล</b>: อนุมัติคนที่ไม่มีเบอร์ / เจ้าหน้าที่ดูภาพรวม, ยกเลิกการผูกบัญชีเมื่อ นศ. เปลี่ยนเครื่อง</li></ul>
+      <li><b>ภาพรวม</b>: ดูผลค้าง (แดง) แล้วโทรหาภาคสนามของกลุ่มนั้น</li>
+      <li><b>ทดสอบด้วยตัวเอง</b>: แท็บผู้ดูแล → "ทดสอบในมุมผู้ใช้" → เลือกภาคสนามกลุ่ม ก–ง หรือศูนย์ จะเห็นหน้าจอแบบ นศ. ส่งผลฝั่งภาคสนามแล้วสลับไปฝั่งศูนย์กดรับได้ทันที ทุกอย่างบันทึกในชื่อผู้ดูแล · ใช้คู่กับวันทดสอบเพื่อไม่ให้ปนผลจริง</li><li><b>ผู้ดูแล</b>: อนุมัติคนที่ไม่มีเบอร์ / เจ้าหน้าที่ดูภาพรวม, ยกเลิกการผูกบัญชีเมื่อ นศ. เปลี่ยนเครื่อง</li></ul>
     <h3>แก้ข้อมูลในชีต</h3><ul><li>แก้ Staff (เบอร์), Roster, SportDays, Matches, Config ได้โดยตรง มีผลภายใน 1 นาที</li><li>อย่าแก้ Bindings / Checkins / Submissions / Log ระหว่างใช้งาน</li></ul>
     <h3>ก่อนวันที่ 4 ธ.ค.</h3><ol><li>ลบวันทดสอบ และกด "ลบรายการทดสอบ"</li><li>ล้างค่า DEMO_DATE ในชีต Config</li><li>ตรวจ DEV_MODE = false</li><li>นำเข้าตารางคู่ลงชีต Matches</li></ol>`],
   backup: ['🆘 แผนสำรอง', `
@@ -870,7 +906,7 @@ const HELP = {
     <h3>สำรองสุดท้าย</h3><p>ฟอร์มกระดาษตัวจริงคือหลักฐานหลักเสมอ ถ้าเน็ตล่มทั้งสนาม ให้ส่งฟอร์มกระดาษเข้าศูนย์ทุกครั้งที่มีคนเดินไปศูนย์</p>`]
 };
 function viewHelp(unbound){
-  const role = unbound ? 'field' : (S.me && S.me.role) || 'field';
+  const role = unbound ? 'field' : R() || 'field';
   const keys = ['field','center','viewer'].concat(role==='admin'?['admin']:[]).concat(['backup']);
   let cur = S.helpTab && keys.includes(S.helpTab) ? S.helpTab : (keys.includes(role) ? role : 'field');
   const render = () => {
