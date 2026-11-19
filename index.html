@@ -111,6 +111,27 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
 @keyframes sp{to{transform:rotate(360deg)}}
 .tbl-wrap{overflow-x:auto}
 a{color:var(--accent)}
+.stephead{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.stepno{flex:none;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.steps span{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.steps span.on{border-color:var(--accent);background:var(--accent-weak);color:var(--accent);font-weight:600}
+.steps span.done{color:var(--good-ink);background:var(--good-weak);border-color:var(--good)}
+.warnbox{background:var(--warn-weak);border-color:var(--warn);color:var(--warn-ink)}
+.okbox{background:var(--good-weak);color:var(--good-ink);border-radius:10px;padding:10px 12px;font-size:14px}
+.daychips{display:flex;gap:6px;overflow-x:auto;padding:8px 0;scrollbar-width:thin}
+.daychip{flex:none;border:1px solid var(--line2);background:#fff;border-radius:10px;padding:6px 10px;cursor:pointer;text-align:center;line-height:1.2}
+.daychip small{display:block;font-size:12px;color:var(--muted)}
+.daychip.on{border-color:var(--accent);background:var(--accent);color:#fff}.daychip.on small{color:#e3ecfa}
+.yes{color:var(--good-ink);font-weight:600;white-space:nowrap}.no{color:var(--crit-ink);font-weight:600;white-space:nowrap}.warn{color:var(--warn-ink);font-weight:600}
+.bigline{font-size:17px;margin-top:8px}
+.att td:first-child{width:52%}
+.acts{display:flex;gap:14px;align-items:baseline;font-size:13px;margin-top:2px}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:13px;white-space:nowrap}
+.help h3{color:var(--ink);font-size:16px;margin:16px 0 6px}
+.help ol,.help ul{padding-left:22px;margin:6px 0}.help li{margin:4px 0}
+.help .q{font-weight:600;margin-top:10px}
+.help code{font-family:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -169,10 +190,12 @@ async function api(action, body={}, opts={}){
       return j.data;
     }catch(e){
       lastErr = e;
-      if (e.code) throw e;                // server ตอบกลับมาแล้ว ไม่ต้องลองซ้ำ
-      await new Promise(r=>setTimeout(r, 1200*(i+1)));
+      if (e.code === 'TOKEN_INVALID' && !DEV && window.liff){ toast('กำลังยืนยันตัวตน LINE ใหม่…'); try{ liff.logout(); }catch(_){} liff.login({redirectUri: location.href}); throw e; }
+      if (e.code && e.code !== 'BUSY') throw e;   // server ตอบกลับมาแล้ว ไม่ต้องลองซ้ำ (ยกเว้นคิว lock เต็ม)
+      await new Promise(r=>setTimeout(r, 1200*(i+1) + Math.random()*800));
     }
   }
+  if (lastErr && lastErr.code === 'BUSY') throw lastErr;
   const e = new Error('เชื่อมต่อไม่ได้ ตรวจสอบสัญญาณอินเทอร์เน็ตแล้วลองอีกครั้ง'); e.code='NETWORK'; e.cause=lastErr; throw e;
 }
 
@@ -186,10 +209,10 @@ async function boot(){
       idToken = liff.getIDToken();
     }
     const d = await api('me');
-    S.today = d.today; S.demo = d.demo; S.dashDate = d.today;
+    S.today = d.today; S.demo = d.demo; S.dashDate = d.today; S.checkin = d.checkin;
     route();
   }catch(e){
-    $('#app').innerHTML = `<div class="card"><h2>เปิดระบบไม่สำเร็จ</h2><div class="err">${esc(e.message)}</div><p class="small muted">ลองปิดแล้วเปิดลิงก์ใหม่จากกลุ่ม LINE</p></div>`;
+    $('#app').innerHTML = `<div class="card"><h2>เปิดระบบไม่สำเร็จ</h2><div class="err">${esc(e.message)}</div><p class="small muted">ลองปิดแล้วเปิดลิงก์ใหม่จากกลุ่ม LINE ถ้ายังไม่ได้ ใช้แผนสำรอง: ส่งรูปฟอร์มเข้ากลุ่ม LINE พร้อม #ชนิดกีฬา คู่ที่ รหัสเวร</p></div>`;
   }
 }
 
@@ -197,22 +220,27 @@ function route(){
   const me = S.me;
   if (!me.bound){ $('#hdr').hidden = true; return me.pending ? viewPending() : viewBind(); }
   $('#hdr').hidden = false;
-  $('#who').innerHTML = `${esc(me.code==='ADMIN' ? 'ผู้ดูแลระบบ' : me.code==='VIEWER' ? me.name : me.code+' · '+me.name)}<small>${{field:'ภาคสนาม'+(me.group?' กลุ่ม '+me.group:''),center:'ศูนย์ป้อนข้อมูล',admin:'ผู้ดูแล',viewer:'เจ้าหน้าที่ · ดูอย่างเดียว'}[me.role]||''}${me.lineName?' · LINE: '+esc(me.lineName):''}</small>`;
+  $('#who').innerHTML = `${esc(me.code==='ADMIN' ? 'ผู้ดูแลระบบ' : me.code==='VIEWER' ? me.name : me.code+' · '+me.name)}<small>${{field:'ภาคสนาม'+(me.group?' กลุ่ม '+me.group:''),center:'ศูนย์ป้อนข้อมูล',admin:'ผู้ดูแล',viewer:'เจ้าหน้าที่ · ดูอย่างเดียว'}[me.role]||''}${me.sub?` · <b style="color:var(--warn-ink)">วันนี้มาแทน ${esc(me.sub.replacesName)}</b>`:''}${me.lineName?' · LINE: '+esc(me.lineName):''}</small>`;
   $('#dateChip').textContent = thDate(S.today);
   $('#demoChip').hidden = !S.demo;
+  // ภาคสนาม/ศูนย์เห็นเฉพาะหน้าของตัวเอง เรียงตามลำดับงานพร้อมเลขขั้น · ขั้นที่ทำแล้วขึ้น ✓
+  const ok1 = S.checkin ? ' ✓' : '';
   const tabs = {
-    field:  [['submit','ส่งผล'],['checkin','เช็กอิน'],['mine','ของฉัน'],['dash','ภาพรวม']],
-    center: [['queue','คิวรับผล'],['dash','ภาพรวม'],['checkin','เช็กอิน']],
-    admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['attend','การมาทำงาน'],['admin','ผู้ดูแล'],['submit','ส่งผล']],
-    viewer: [['dash','ภาพรวม']],
-  }[me.role] || [['dash','ภาพรวม']];
+    field:  [['checkin','① เช็กอิน'+ok1],['submit','② ส่งผล'],['mine','③ ติดตามผล'],['help','❓ วิธีใช้']],
+    center: [['checkin','① เข้าศูนย์'+ok1],['queue','② คิวรับผล'],['help','❓ วิธีใช้']],
+    admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['attend','การมาทำงาน'],['admin','ผู้ดูแล'],['submit','ส่งผล'],['help','❓ วิธีใช้']],
+    viewer: [['dash','ภาพรวม'],['help','❓ วิธีใช้']],
+  }[me.role] || [['help','❓ วิธีใช้']];
   const want = qs.get('tab');
-  if (!S.tab || !tabs.some(t=>t[0]===S.tab)) S.tab = tabs.some(t=>t[0]===want) ? want : tabs[0][0];
+  const first = me.role==='field' ? (S.checkin?'submit':'checkin') : me.role==='center' ? (S.checkin?'queue':'checkin') : tabs[0][0];
+  if (!S.tab || !tabs.some(t=>t[0]===S.tab)) S.tab = tabs.some(t=>t[0]===want) ? want : first;
   $('#tabs').innerHTML = tabs.map(([k,l])=>`<button data-k="${k}" class="${k===S.tab?'on':''}">${l}${k==='queue'?'<span class="badge" id="qBadge" hidden></span>':''}${k==='mine'?'<span class="badge" id="mBadge" hidden></span>':''}</button>`).join('');
   $('#tabs').onclick = e => { const b=e.target.closest('button'); if(b){ S.tab=b.dataset.k; route(); } };
   clearTimers();
-  ({submit:viewSubmit, checkin:viewCheckin, mine:viewMine, queue:viewQueue, dash:viewDash, attend:viewAttend, admin:viewAdmin})[S.tab]();
+  $('#app').onclick = null;
+  ({submit:viewSubmit, checkin:viewCheckin, mine:viewMine, queue:viewQueue, dash:viewDash, attend:viewAttend, admin:viewAdmin, help:viewHelp})[S.tab]();
 }
+function go(tab){ S.tab = tab; route(); window.scrollTo(0,0); }
 
 /* ---------- bind ---------- */
 function viewBind(){
@@ -235,7 +263,9 @@ function viewBind(){
     <label class="f">ชื่อ-ตำแหน่ง</label><input id="vName" type="text" maxlength="60" placeholder="เช่น อ.สมชาย ใจดี ฝ่ายประมวลผล">
     <div id="vErr" style="margin-top:10px"></div>
     <button class="btn block" id="vGo" style="margin-top:10px">ขอสิทธิ์ดูภาพรวม</button>
-  </div>`;
+  </div>
+  <div style="max-width:480px;margin:12px auto"><button class="btn block" id="hGo">❓ วิธีใช้ / คู่มือ</button></div>`;
+  $('#hGo').onclick = () => viewHelp(true);
   const go = async (body, errBox='#bErr') => {
     $('#bErr').innerHTML=''; $('#vErr').innerHTML='';
     try{ const r = await api('bind', body); if (r.status==='pending') toast('ส่งคำขอแล้ว รอผู้ดูแลอนุมัติ'); await api('me'); route(); }
@@ -253,12 +283,22 @@ function viewPending(){
 
 /* ---------- submit (field) ---------- */
 function newDraft(){ return {clientKey:uuid(), sport:'', matchNo:'', photos:[]}; }
+// แสดงข้อมูลเดิมทันที (ถ้ามี) แล้วค่อยดึงใหม่เบื้องหลัง · วาดใหม่เฉพาะเมื่อข้อมูลเปลี่ยน
+async function loadMyDay(onChange){
+  const before = JSON.stringify(S.myDay);
+  try{ S.myDay = await api('myDay'); S.myDayAt = Date.now(); if (S.me.role!=='admin') S.checkin = S.myDay.checkin; }
+  catch(e){ if (!S.myDay) throw e; toast(e.message); return; }
+  if (JSON.stringify(S.myDay) !== before) onChange();
+}
 async function viewSubmit(){
   if (!S.draft) S.draft = load('draft') || newDraft();
-  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
-  try{ S.myDay = await api('myDay'); }catch(e){ $('#app').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
-  renderSubmit();
+  const tab = S.tab;
+  if (S.myDay) renderSubmit(); else $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div>กำลังโหลดชนิดกีฬาวันนี้…</div>`;
+  if (S.myDay && Date.now() - (S.myDayAt||0) < 60000) return;
+  try{ await loadMyDay(() => { if (S.tab===tab && !S.sending) renderSubmit(); }); }
+  catch(e){ $('#app').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
 }
+function stepHead(n, title, sub){ return `<div class="stephead"><span class="stepno">${n}</span><div><h2 style="margin:0">${title}</h2>${sub?`<div class="small muted">${sub}</div>`:''}</div></div>`; }
 function renderSubmit(showOther){
   const d = S.myDay, dr = S.draft;
   const sportBtn = s => `<button class="pill ${dr.sport===s.sport?'on':''}" data-sport="${esc(s.sport)}">${esc(s.sport)}<small>${esc(s.venue||'')}${s.closed?' · ปิดแล้ว':''}</small></button>`;
@@ -267,20 +307,24 @@ function renderSubmit(showOther){
   const ms = dr.sport ? (d.matches[dr.sport]||[]) : [];
   const sd = [...d.sports, ...d.otherSports].find(s=>s.sport===dr.sport);
   $('#app').innerHTML = `
+  ${S.me.role==='field' && !S.checkin ? `<div class="card warnbox"><b>ยังไม่ได้เช็กอิน</b> ทำขั้นที่ ① ก่อน เพื่อให้ศูนย์รู้ว่าคุณอยู่สนามไหน <button class="btn sm" onclick="go('checkin')" style="margin-left:6px">ไปเช็กอิน</button></div>` : ''}
   <div class="card">
-    <h2>ส่งผลการแข่งขัน</h2>
+    ${stepHead('②', 'ส่งผลการแข่งขัน', 'ทำทุกครั้งที่จบ 1 คู่ และกรรมการเซ็นฟอร์มแล้ว')}
     ${d.onDuty ? '' : `<div class="hint">วันนี้คุณไม่มีชื่อในตารางเวรภาคสนาม หากมาช่วยงาน เลือกชนิดกีฬาจาก "กีฬาอื่นวันนี้" ได้</div>`}
-    <label class="f">1. ชนิดกีฬา</label>
+    <label class="f">2.1 เลือกชนิดกีฬา</label>
     <div class="pills" id="sports">${d.sports.map(sportBtn).join('') || '<span class="muted small">ไม่มีกีฬาของกลุ่มคุณวันนี้</span>'}</div>
     ${d.otherSports.length ? (showO ? `<h3>กีฬาอื่นวันนี้</h3><div class="pills" id="sports2">${d.otherSports.map(sportBtn).join('')}</div>` : `<button class="btn sm" id="moreSp" style="margin-top:8px">+ กีฬาอื่นวันนี้</button>`) : ''}
 
-    <label class="f">2. คู่ที่</label>
+    <label class="f">2.2 เลือกคู่ที่ (ดูเลขคู่บนฟอร์ม)</label>
     ${!dr.sport ? '<div class="muted small">เลือกชนิดกีฬาก่อน</div>' :
-      ms.length ? `<div class="pills" id="matches">${ms.map(m=>`<button class="pill ${String(dr.matchNo)===String(m.matchNo)?'on':''} ${m.submittedId?'done':''}" data-m="${esc(m.matchNo)}">คู่ที่ ${esc(m.matchNo)}<small>${esc(m.startTime||'')}${m.submittedId?' · ส่งแล้ว '+m.submittedId:''}</small></button>`).join('')}</div>
-        <details style="margin-top:8px"><summary class="small muted">ไม่มีคู่ในรายการ / พิมพ์เอง</summary><input id="mIn" type="text" inputmode="numeric" value="${esc(ms.some(m=>String(m.matchNo)===String(dr.matchNo))?'':dr.matchNo)}" placeholder="เลขคู่ที่" style="margin-top:6px"></details>`
+      ms.length ? (()=>{ const pre = ms.some(m=>!/^\d+$/.test(String(m.matchNo)));
+        const court = v => { const c = String(v||'').match(/สนาม\s*(\d)$/); return c ? ' · สนาม '+c[1] : ''; };
+        return `${pre?`<div class="hint" style="margin-bottom:8px">กีฬานี้เลขคู่แยกชาย/หญิง: <b>ช</b> = ชาย, <b>ญ</b> = หญิง เช่น ช3, ญ1 ให้ตรงกับฟอร์ม</div>`:''}
+        <div class="pills" id="matches">${ms.map(m=>`<button class="pill ${String(dr.matchNo)===String(m.matchNo)?'on':''} ${m.submittedId?'done':''}" data-m="${esc(m.matchNo)}">คู่ที่ ${esc(m.matchNo)}<small>${esc(m.startTime||'')}${court(m.venue)}${m.submittedId?' · ส่งแล้ว '+m.submittedId:''}</small></button>`).join('')}</div>
+        <details style="margin-top:8px"><summary class="small muted">ไม่มีคู่ในรายการ / พิมพ์เอง</summary><input id="mIn" type="text" inputmode="${pre?'text':'numeric'}" value="${esc(ms.some(m=>String(m.matchNo)===String(dr.matchNo))?'':dr.matchNo)}" placeholder="${pre?'เช่น ช3 หรือ ญ1':'เลขคู่ที่'}" style="margin-top:6px"></details>`; })()
       : `<input id="mIn" type="text" inputmode="numeric" value="${esc(dr.matchNo)}" placeholder="เลขคู่ที่ตามฟอร์ม เช่น 3">`}
 
-    <label class="f">3. รูปฟอร์มที่กรรมการเซ็นแล้ว</label>
+    <label class="f">2.3 ถ่ายรูปฟอร์มที่กรรมการเซ็นแล้ว</label>
     <div class="hint">ถ่ายให้ <b>ติดทั้งแผ่น</b> วางบนพื้นเรียบ ไม่ย้อนแสง อ่านคะแนนและลายเซ็นได้ชัด · ส่งได้ไม่เกิน 3 รูป (เช่น ใบบันทึกผล + แบบรับรองผล)</div>
     <div class="row" style="margin-top:8px">
       <label class="btn" for="cam">📷 ถ่ายรูป</label><input id="cam" type="file" accept="image/*" capture="environment" hidden>
@@ -288,7 +332,9 @@ function renderSubmit(showOther){
     </div>
     <div class="thumbs">${dr.photos.map((p,i)=>`<div class="thumb"><img src="${p}"><button data-rm="${i}" aria-label="ลบรูป">✕</button></div>`).join('')}</div>
     <div id="sErr" style="margin-top:10px"></div>
-    <button class="btn pri block" id="send" style="margin-top:14px" ${dr.sport && dr.matchNo && dr.photos.length ? '' : 'disabled'}>ส่งผลไปศูนย์ประมวลผล</button>
+    <label class="f">2.4 กดส่ง</label>
+    <button class="btn pri block" id="send" ${dr.sport && dr.matchNo && dr.photos.length ? '' : 'disabled'}>ส่งผลไปศูนย์ประมวลผล</button>
+    <div class="small muted" id="sendHint" style="margin-top:6px">${!dr.sport?'ยังไม่ได้เลือกชนิดกีฬา':!dr.matchNo?'ยังไม่ได้เลือกคู่ที่':!dr.photos.length?'ยังไม่มีรูปฟอร์ม':'พร้อมส่ง · ใช้เวลาประมาณ 5–15 วินาที อย่าปิดหน้านี้'}</div>
   </div>
   ${sd ? `<div class="card"><div class="hrow"><div><b>${esc(sd.sport)}</b><div class="small muted">${sd.closed?'ปิดการแข่งขันวันนี้แล้ว':'จบการแข่งขันชนิดนี้ทั้งวันแล้ว? แจ้งศูนย์ว่ามีทั้งหมดกี่คู่'}</div></div>
      <button class="btn sm" id="closeSp">${sd.closed?'เปิดใหม่':'ปิดวันนี้'}</button></div></div>` : ''}`;
@@ -297,7 +343,8 @@ function renderSubmit(showOther){
   $('#sports').onclick = pick; if ($('#sports2')) $('#sports2').onclick = pick;
   if ($('#moreSp')) $('#moreSp').onclick = () => renderSubmit(true);
   if ($('#matches')) $('#matches').onclick = e => { const b=e.target.closest('[data-m]'); if(!b) return; dr.matchNo=b.dataset.m; saveDraft(); renderSubmit(); };
-  if ($('#mIn')) $('#mIn').oninput = e => { dr.matchNo = e.target.value.trim(); saveDraft(); $('#send').disabled = !(dr.sport && dr.matchNo && dr.photos.length); };
+  if ($('#mIn')) $('#mIn').oninput = e => { dr.matchNo = e.target.value.trim(); saveDraft(); const r = !!(dr.sport && dr.matchNo && dr.photos.length); $('#send').disabled = !r;
+    $('#sendHint').textContent = !dr.matchNo ? 'ยังไม่ได้เลือกคู่ที่' : !dr.photos.length ? 'ยังไม่มีรูปฟอร์ม' : 'พร้อมส่ง · ใช้เวลาประมาณ 5–15 วินาที อย่าปิดหน้านี้'; };
   const add = async e => { const files=[...e.target.files]; for (const f of files){ if (dr.photos.length>=3) { toast('ส่งได้ไม่เกิน 3 รูป'); break; } dr.photos.push(await shrink(f)); } saveDraft(); renderSubmit(); };
   $('#cam').onchange = add; $('#gal').onchange = add;
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { dr.photos.splice(+b.dataset.rm,1); saveDraft(); renderSubmit(); });
@@ -321,18 +368,21 @@ async function doSubmit(force){
   const dr = S.draft, btn = $('#send');
   btn.disabled = true; btn.textContent = 'กำลังส่ง… อย่าปิดหน้านี้';
   $('#sErr').innerHTML='';
+  S.sending = true;
   try{
     const r = await api('submit', {clientKey:dr.clientKey, sport:dr.sport, matchNo:dr.matchNo, photos:dr.photos, forceDuplicate:force}, {retries:3});
     const s = r.submission;
-    S.draft = newDraft(); store('draft');
+    S.draft = newDraft(); store('draft'); S.myDayAt = 0; S.mine = null;
     $('#app').innerHTML = `<div class="card" style="text-align:center">
       <div style="font-size:40px">✅</div><h2>ส่งผลเรียบร้อย</h2>
       <div class="muted">เลขรับเรื่อง</div><div class="bigid">${esc(s.id)}</div>
       <div class="hint" style="text-align:left">เขียนเลข <b>${esc(s.id)}</b> ที่มุมขวาบนของฟอร์มกระดาษ แล้วเก็บต้นฉบับส่งศูนย์ตอนเลิกงาน</div>
       <dl class="kv" style="text-align:left"><dt>ชนิดกีฬา</dt><dd>${esc(s.sport)}</dd><dt>คู่ที่</dt><dd>${esc(s.matchNo)}</dd><dt>เวลา</dt><dd>${hm(s.submittedAt)} น.</dd>${s.duplicateOf?`<dt>หมายเหตุ</dt><dd>ส่งซ้ำกับ ${esc(s.duplicateOf)}</dd>`:''}</dl>
-      <button class="btn pri block" id="again">ส่งผลคู่ถัดไป</button></div>`;
+      <div class="row"><button class="btn pri" id="again">② ส่งผลคู่ถัดไป</button><button class="btn" onclick="go('mine')">③ ดูสถานะ</button></div></div>`;
     $('#again').onclick = viewSubmit;
+    S.sending = false;
   }catch(e){
+    S.sending = false;
     if (e.code === 'DUPLICATE'){
       let info={}; try{ info=JSON.parse(e.message); }catch(_){}
       const ok = await confirmDlg(`คู่นี้มีคนส่งแล้ว`, `${esc(dr.sport)} คู่ที่ ${esc(dr.matchNo)} ถูกส่งแล้วโดย <b>${esc(info.byName||info.by)}</b> เวลา ${hm(info.at)} น. (เลข ${esc(info.id)}, ${ST[info.status]||''})<br><br>ตรวจคู่ที่อีกครั้ง ถ้าแน่ใจว่าต้องส่งซ้ำ ศูนย์จะเห็นว่าเป็นรายการซ้ำ`, 'ส่งซ้ำ', 'กลับไปแก้');
@@ -354,53 +404,79 @@ async function closeSport(sd){
     if (n===null) return;
     await api('closeSport', {sport:sd.sport, expectedMatches:Number(n)}).then(()=>toast('แจ้งศูนย์แล้ว')).catch(e=>toast(e.message));
   }
-  viewSubmit();
+  S.myDayAt = 0; viewSubmit();
 }
 
 /* ---------- check-in ---------- */
 async function viewCheckin(){
-  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
-  const d = S.myDay = await api('myDay').catch(e=>({error:e.message}));
-  if (d.error) return $('#app').innerHTML = `<div class="err">${esc(d.error)}</div>`;
   const isCenter = S.me.role==='center';
-  const ci = d.checkin;
-  $('#app').innerHTML = `<div class="card">
-    <h2>เช็กอินหน้างาน</h2>
-    <div class="hint">${ci ? `ตอนนี้อยู่ที่ <b>${esc(ci.sport||'-')}</b> ตั้งแต่ ${hm(ci.inAt)} น.` : 'ยังไม่ได้เช็กอินวันนี้'}</div>
-    ${isCenter ? `<button class="btn pri block" id="cin" style="margin-top:12px">${ci?'เช็กอินใหม่':'เข้าศูนย์แล้ว'}</button>` : `
-      <label class="f">${ci?'ย้ายไปสนาม':'ถึงสนามแล้ว'} — เลือกชนิดกีฬา</label>
-      <div class="pills" id="cs">${[...d.sports, ...d.otherSports].map(s=>`<button class="pill ${ci&&ci.sport===s.sport?'on':''}" data-s="${esc(s.sport)}" data-v="${esc(s.venue)}">${esc(s.sport)}<small>${esc(s.venue||'')}${d.sports.includes(s)?'':' · กลุ่มอื่น'}</small></button>`).join('') || '<span class="muted">ไม่มีการแข่งวันนี้</span>'}</div>`}
-    ${ci ? `<button class="btn danger block" id="cout" style="margin-top:12px">เลิกงาน / ออกจากจุด</button>` : ''}
-  </div>`;
-  if ($('#cin')) $('#cin').onclick = async () => { await api('checkin', {}).catch(e=>toast(e.message)); viewCheckin(); };
-  if ($('#cs')) $('#cs').onclick = async e => { const b=e.target.closest('[data-s]'); if(!b) return; await api('checkin', {sport:b.dataset.s, venue:b.dataset.v}).then(()=>toast('เช็กอินแล้ว')).catch(e=>toast(e.message)); viewCheckin(); };
-  if ($('#cout')) $('#cout').onclick = async () => { await api('checkout').catch(e=>toast(e.message)); viewCheckin(); };
+  const render = () => {
+    const ci = S.checkin;
+    const d = S.myDay;
+    const all = d ? [...d.sports, ...d.otherSports] : [];
+    $('#app').innerHTML = `<div class="card">
+      ${stepHead('①', isCenter?'เข้าศูนย์':'เช็กอินที่สนาม', isCenter?'กดเมื่อมาถึงศูนย์ป้อนข้อมูล':'กดเมื่อไปถึงสนาม เพื่อให้ผู้ดูแลรู้ว่าคุณอยู่ที่ไหน')}
+      <div class="${ci?'okbox':'hint'}">${ci ? `✓ เช็กอินแล้ว · อยู่ที่ <b>${esc(ci.sport||'-')}</b> ตั้งแต่ ${hm(ci.inAt)} น.` : 'ยังไม่ได้เช็กอินวันนี้'}</div>
+      ${isCenter ? `<button class="btn pri block" id="cin" style="margin-top:12px" ${ci?'hidden':''}>เข้าศูนย์แล้ว</button>` : `
+        <label class="f">${ci?'ย้ายไปสนามอื่น? เลือกชนิดกีฬาใหม่':'เลือกชนิดกีฬาที่คุณประจำ'}</label>
+        ${!d ? '<div class="center-msg"><div class="spin"></div></div>' : `
+        ${d.sports.length?`<div class="small muted">กีฬาของกลุ่มคุณ</div><div class="pills" id="cs">${d.sports.map(pill).join('')}</div>`:'<div class="muted small">วันนี้ไม่มีกีฬาของกลุ่มคุณ</div>'}
+        ${d.otherSports.length?`<details style="margin-top:10px" ${d.sports.length?'':'open'}><summary class="small muted">กีฬาอื่นวันนี้ (กลุ่มอื่น)</summary><div class="pills" id="cs2" style="margin-top:6px">${d.otherSports.map(pill).join('')}</div></details>`:''}`}`}
+      ${ci ? `<div class="row" style="margin-top:14px"><button class="btn pri" onclick="go('${isCenter?'queue':'submit'}')">ไปขั้นที่ ② ${isCenter?'คิวรับผล':'ส่งผล'} →</button></div>` : ''}
+    </div>
+    ${ci ? `<div class="card"><h3 style="margin-top:0">จบงานวันนี้</h3><p class="small muted" style="margin-top:0">${isCenter?'ก่อนกดเลิกงาน ป้อนรายการที่รับไว้ให้ครบ หรือกด "คืนคิว"':'ก่อนกดเลิกงาน ตรวจหน้า ③ ว่าไม่มีรายการถูกตีกลับค้าง และส่งฟอร์มกระดาษให้ศูนย์'}</p>
+      <button class="btn danger block" id="cout">เลิกงาน / ออกจากจุด</button></div>` : ''}`;
+    const pick = async e => { const b=e.target.closest('[data-s]'); if(!b) return; b.disabled = true;
+      try{ S.checkin = await api('checkin', {sport:b.dataset.s, venue:b.dataset.v}); toast('เช็กอินแล้ว ✓ ขั้นต่อไป ② ส่งผล'); go('submit'); }catch(err){ toast(err.message); render(); } };
+    if ($('#cs')) $('#cs').onclick = pick;
+    if ($('#cs2')) $('#cs2').onclick = pick;
+    if ($('#cin')) $('#cin').onclick = async () => { $('#cin').disabled = true;
+      try{ S.checkin = await api('checkin', {}); toast('เข้าศูนย์แล้ว ✓ ขั้นต่อไป ② คิวรับผล'); go('queue'); }catch(err){ toast(err.message); render(); } };
+    if ($('#cout')) $('#cout').onclick = async () => {
+      if (!await confirmDlg('เลิกงาน?', 'ระบบจะบันทึกเวลาออกจากจุด', 'เลิกงาน')) return;
+      try{ await api('checkout'); S.checkin = null; toast('บันทึกเวลาเลิกงานแล้ว'); route(); }catch(err){ toast(err.message); } };
+  };
+  const pill = s => `<button class="pill ${S.checkin&&S.checkin.sport===s.sport?'on':''}" data-s="${esc(s.sport)}" data-v="${esc(s.venue)}">${esc(s.sport)}<small>${esc(s.venue||'')}</small></button>`;
+  render();
+  if (!isCenter && !(S.myDay && Date.now() - (S.myDayAt||0) < 60000)) loadMyDay(() => { if (S.tab==='checkin') render(); }).catch(e => { if (S.tab==='checkin') $('#app').innerHTML = `<div class="err">${esc(e.message)}</div>`; });
 }
 
 /* ---------- mine ---------- */
 async function viewMine(){
-  $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
-  const load_ = async () => {
-    const list = await api('mySubmissions').catch(e=>({error:e.message}));
-    if (list.error) return $('#app').innerHTML = `<div class="err">${esc(list.error)}</div>`;
+  const render = list => {
     const ret = list.filter(s=>s.status==='RETURNED').length;
     const mb = $('#mBadge'); if (mb){ mb.hidden = !ret; mb.textContent = ret; }
-    $('#app').innerHTML = `<div class="card"><h2>รายการที่ฉันส่งวันนี้ (${list.length})</h2>
+    $('#app').innerHTML = `<div class="card">${stepHead('③', `ติดตามผลที่ส่งวันนี้ (${list.length})`, 'ดูว่าศูนย์รับและป้อนแล้วหรือยัง · รายการที่ถูกตีกลับต้องถ่ายรูปส่งใหม่')}
+      <div class="small muted" style="margin-bottom:8px">${ST.SUBMITTED} → ${ST.CLAIMED} → ${ST.ENTERED} (หรือ ${ST.RETURNED} = ต้องส่งใหม่)</div>
+      ${ret?`<div class="err" style="margin-bottom:8px">มี ${ret} รายการถูกตีกลับ ถ่ายรูปใหม่แล้วกดส่งด้านล่าง</div>`:''}
       ${list.length ? `<div class="list">${list.map(s=>`<div class="item"><div class="grow">
         <div class="t">${esc(s.id)} · ${esc(s.sport)} คู่ที่ ${esc(s.matchNo)}</div>
         <div class="m">ส่ง ${hm(s.submittedAt)} น.${s.claimName?' · รับโดย '+esc(s.claimName):''}${s.enteredAt?' · ป้อน '+hm(s.enteredAt)+' น.':''}</div>
         ${s.status==='RETURNED'?`<div class="err" style="margin-top:6px">ตีกลับโดย ${esc(s.returnedBy)}: ${esc(s.returnReason)}</div>
           <label class="btn sm pri" style="margin-top:6px" for="rs-${esc(s.id)}">📷 ถ่ายรูปใหม่แล้วส่ง</label><input type="file" accept="image/*" capture="environment" hidden id="rs-${esc(s.id)}" data-id="${esc(s.id)}">`:''}
-        </div><span class="status st-${s.status}">${ST[s.status]}</span></div>`).join('')}</div>` : '<p class="muted">ยังไม่มี</p>'}</div>`;
+        </div><span class="status st-${s.status}">${ST[s.status]}</span></div>`).join('')}</div>` : '<p class="muted">ยังไม่มี · ส่งผลได้ที่ขั้นที่ ②</p>'}</div>
+      <div class="card">${stepHead('④', 'จบงานวันนี้')}
+        <ol class="small" style="margin:6px 0 10px;padding-left:20px">
+          <li>กีฬาที่ไม่มีตารางคู่: ไปหน้า ② เลือกกีฬา แล้วกด "ปิดวันนี้" ใส่จำนวนคู่ทั้งหมด</li>
+          <li>ตรวจว่าไม่มีรายการ ↩️ ตีกลับ ค้างอยู่</li>
+          <li>รวบรวมฟอร์มกระดาษ (เขียนเลขรับเรื่องแล้ว) ส่งศูนย์</li>
+          <li>กด "เลิกงาน" ที่หน้า ①</li></ol>
+        <button class="btn block" onclick="go('checkin')">ไปหน้า ① เพื่อเลิกงาน</button></div>`;
     document.querySelectorAll('input[data-id]').forEach(inp => inp.onchange = async e => {
       const f = e.target.files[0]; if(!f) return;
-      toast('กำลังส่งรูปใหม่…');
+      toast('กำลังส่งรูปใหม่… อย่าปิดหน้านี้', 6000);
       try{ await api('resubmit', {id:inp.dataset.id, photos:[await shrink(f)]}, {retries:2}); toast('ส่งใหม่แล้ว'); }catch(err){ toast(err.message, 4000); }
       load_();
     });
   };
+  const load_ = async () => {
+    const before = JSON.stringify(S.mine);
+    try{ S.mine = await api('mySubmissions'); }catch(e){ if (!S.mine) $('#app').innerHTML = `<div class="err">${esc(e.message)}</div>`; else toast(e.message); return; }
+    if (S.tab==='mine' && JSON.stringify(S.mine) !== before) render(S.mine);
+  };
+  if (S.mine) render(S.mine); else $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div>กำลังโหลด…</div>`;
   await load_();
-  every(30000, load_);
+  every(45000, load_);
 }
 
 /* ---------- queue (center) ---------- */
@@ -410,15 +486,20 @@ async function viewQueue(){
       <div class="pills" id="qf"></div><span class="grow"></span>
       <select id="qDate">${DAYS.concat(DAYS.includes(S.today)?[]:[S.today]).map(d=>`<option value="${d}" ${d===(S.qDate||S.today)?'selected':''}>${thDate(d)}</option>`).join('')}</select>
       <button class="btn sm" id="qR">รีเฟรช</button></div>
-    <div class="split"><div class="card" style="padding:0"><div class="list" id="qList"></div></div><div id="qDet" class="sticky"></div></div>`;
-  $('#qDate').onchange = e => { S.qDate = e.target.value; S.sel=null; refreshQueue(); };
+    <div class="steps small"><span><b>①</b> เลือกรายการ "รอรับ" แล้วกด <b>รับรายการนี้</b></span><span><b>②</b> ดูรูป แล้วป้อนผลในระบบ กกท.</span><span><b>③</b> กด <b>ป้อน กกท. แล้ว</b></span></div>
+    <div class="split"><div class="card" style="padding:0"><div class="list" id="qList"><div class="center-msg"><div class="spin"></div>กำลังโหลดคิว…</div></div></div><div id="qDet" class="sticky"></div></div>`;
+  $('#qDate').onchange = e => { S.qDate = e.target.value; S.sel=null; S.queue=null; refreshQueue(); };
   $('#qR').onclick = refreshQueue;
+  if (S.queue && S.queue.date === (S.qDate||S.today)) renderQueue();
   await refreshQueue();
-  every(15000, refreshQueue);
+  every(20000, refreshQueue);
 }
 async function refreshQueue(){
-  let q;
-  try{ q = S.queue = await api('queue', {date:S.qDate||S.today}); }catch(e){ $('#qList').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  try{ S.queue = await api('queue', {date:S.qDate||S.today}); }catch(e){ if (!S.queue) $('#qList').innerHTML = `<div class="err">${esc(e.message)}</div>`; else toast(e.message); return; }
+  if (S.tab==='queue' && $('#qList')) renderQueue();
+}
+function renderQueue(){
+  const q = S.queue;
   const items = q.items, me = S.me.code;
   const waiting = items.filter(s=>s.status==='SUBMITTED').length;
   if (S.lastWaiting !== null && waiting > S.lastWaiting) beep();
@@ -428,14 +509,28 @@ async function refreshQueue(){
   const F = [['SUBMITTED','รอรับ'],['MINE','ของฉัน'],['RETURNED','ตีกลับ'],['ENTERED','ป้อนแล้ว'],['ALL','ทั้งหมด']];
   const cnt = k => k==='ALL'?items.length : k==='MINE'? items.filter(s=>s.status==='CLAIMED'&&s.claimCode===me).length : items.filter(s=>s.status===k).length;
   $('#qf').innerHTML = F.map(([k,l])=>`<button class="pill ${qFilter===k?'on':''}" data-f="${k}">${l} <b>${cnt(k)}</b></button>`).join('');
-  $('#qf').onclick = e => { const b=e.target.closest('[data-f]'); if(b){ qFilter=b.dataset.f; refreshQueue(); } };
+  $('#qf').onclick = e => { const b=e.target.closest('[data-f]'); if(b){ qFilter=b.dataset.f; renderQueue(); } };
   const shown = items.filter(s => qFilter==='ALL' || (qFilter==='MINE' ? (s.status==='CLAIMED'&&s.claimCode===me) : s.status===qFilter));
   $('#qList').innerHTML = shown.length ? shown.map(s=>`<div class="item ${S.sel===s.id?'sel':''}" data-id="${esc(s.id)}"><div class="grow">
       <div class="t">${esc(s.id)} · ${esc(s.sport)} คู่ที่ ${esc(s.matchNo)} ${s.duplicateOf?'<span class="tag red">ซ้ำกับ '+esc(s.duplicateOf)+'</span>':''}${s.resubmitCount?'<span class="tag">ส่งใหม่</span>':''}${s.isTest?'<span class="tag">ทดสอบ</span>':''}</div>
       <div class="m">${esc(s.fieldName)} · ${hm(s.submittedAt)} น.${s.claimName?' · '+esc(s.claimName):''}</div></div>
       <span class="status st-${s.status}">${ST[s.status]}</span></div>`).join('') : `<div class="center-msg">ไม่มีรายการ</div>`;
-  $('#qList').onclick = e => { const it=e.target.closest('[data-id]'); if(it){ S.sel=it.dataset.id; refreshQueueSel(); } };
+  $('#qList').onclick = e => { const it=e.target.closest('[data-id]'); if(it){ S.sel=it.dataset.id; refreshQueueSel();
+    if (window.innerWidth < 900) $('#qDet').scrollIntoView({block:'start', behavior:'smooth'}); } };
   refreshQueueSel();
+  prefetchPhotos(items.filter(s=>s.status==='SUBMITTED' || (s.status==='CLAIMED' && s.claimCode===me)).slice(0,3));
+}
+// โหลดรูปแรกของรายการต้นคิวไว้ล่วงหน้า (ทีละรูป) กดเลือกแล้วรูปขึ้นทันที
+let prefetching = false;
+async function prefetchPhotos(list){
+  if (prefetching) return; prefetching = true;
+  try{
+    for (const s of list){
+      const key = s.id+'#0#'+s.resubmitCount;
+      if (!s.photoCount || S.photoCache[key]) continue;
+      try{ const p = await api('photo', {id:s.id, index:0}, {retries:0}); S.photoCache[key] = `data:${p.mime};base64,${p.base64}`; }catch(e){ break; }
+    }
+  } finally { prefetching = false; }
 }
 function refreshQueueSel(){
   document.querySelectorAll('#qList .item').forEach(el=>el.classList.toggle('sel', el.dataset.id===S.sel));
@@ -449,21 +544,25 @@ function refreshQueueSel(){
   box.dataset.sig = sig;
   box.innerHTML = `<div class="card">
     <div class="hrow"><h2 style="margin:0">${esc(s.id)} · ${esc(s.sport)} คู่ที่ ${esc(s.matchNo)}</h2><span class="status st-${s.status}">${ST[s.status]}</span></div>
+    ${(()=>{ const cur = s.status==='SUBMITTED'?0 : s.status==='CLAIMED'?(mineClaim?1:-1) : s.status==='ENTERED'?3 : -1;
+      if (cur<0) return s.status==='CLAIMED'?`<div class="small muted" style="margin-top:6px">${esc(s.claimName)} รับรายการนี้ไปแล้ว</div>`:'';
+      return `<div class="steps small" style="margin:8px 0 0">${['รับรายการ','ดูรูป ป้อน กกท.','กด "ป้อน กกท. แล้ว"'].map((t,i)=>`<span class="${i<cur?'done':i===cur?'on':''}">${i<cur?'✓':'①②③'[i]} ${t}</span>`).join('')}</div>`; })()}
     <dl class="kv"><dt>ผู้ส่ง</dt><dd>${esc(s.fieldName)} · ${hm(s.submittedAt)} น.</dd><dt>สนาม</dt><dd>${esc(s.venue||'-')}</dd>
       ${s.claimName?`<dt>ผู้รับ</dt><dd>${esc(s.claimName)} · ${hm(s.claimedAt)} น.</dd>`:''}
       ${s.enteredName?`<dt>ป้อน กกท.</dt><dd>${esc(s.enteredName)} · ${hm(s.enteredAt)} น.</dd>`:''}
       ${s.verifiedBy?`<dt>ตรวจทาน</dt><dd>${esc(s.verifiedBy)} · ${hm(s.verifiedAt)} น.</dd>`:''}
       ${s.returnReason?`<dt>ตีกลับ</dt><dd>${esc(s.returnReason)} (${esc(s.returnedBy)})</dd>`:''}
       ${s.duplicateOf?`<dt>คำเตือน</dt><dd class="tag red">คู่นี้ส่งซ้ำกับ ${esc(s.duplicateOf)} — ตรวจว่าคู่ที่ถูกต้อง</dd>`:''}</dl>
-    <div class="row" id="pTabs">${Array.from({length:s.photoCount},(_,i)=>`<button class="btn sm" data-p="${i}">รูป ${i+1}</button>`).join('')}<button class="btn sm" id="rot">⟳ หมุน</button></div>
-    <div class="photo-box" id="pBox" style="margin-top:8px"><div class="spin"></div></div>
-    <div class="row" style="margin-top:12px">
+    <div class="row" style="margin:4px 0 12px">
       ${s.status==='SUBMITTED'?`<button class="btn pri" data-a="claim">รับรายการนี้</button>`:''}
       ${mineClaim?`<button class="btn good" data-a="entered">ป้อน กกท. แล้ว</button><button class="btn" data-a="release">คืนคิว</button>`:''}
       ${(s.status==='SUBMITTED'||mineClaim)?`<button class="btn danger" data-a="return">ตีกลับ</button>`:''}
       ${s.status==='ENTERED'&&S.queue.verifyEnabled&&!s.verifiedBy&&(s.enteredBy!==me||admin)?`<button class="btn" data-a="verify">ตรวจทานแล้ว</button>`:''}
       ${s.status==='ENTERED'&&admin?`<button class="btn danger" data-a="return">ตีกลับ (ผู้ดูแล)</button>`:''}
-    </div></div>`;
+    </div>
+    <div class="row" id="pTabs">${Array.from({length:s.photoCount},(_,i)=>`<button class="btn sm" data-p="${i}">รูป ${i+1}</button>`).join('')}<button class="btn sm" id="rot">⟳ หมุน</button></div>
+    <div class="photo-box" id="pBox" style="margin-top:8px"><div class="spin"></div></div>
+    <div class="small muted" style="margin-top:6px">แตะรูปเพื่อขยาย</div></div>`;
   let rot = 0, cur = 0;
   const show = async i => {
     cur = i; const key = s.id+'#'+i+'#'+s.resubmitCount;
@@ -484,10 +583,19 @@ function refreshQueueSel(){
       const r = await reasonDlg(); if (!r) return; body.reason = r;
     }
     if (a==='entered' && !await confirmDlg('ยืนยันป้อนผลแล้ว', `ป้อน <b>${esc(s.sport)} คู่ที่ ${esc(s.matchNo)}</b> ในระบบ กกท. เรียบร้อยแล้ว?`, 'ยืนยัน')) return;
-    b.disabled = true;
-    try{ await api({claim:'claim',release:'release',entered:'entered',return:'returnSub',verify:'verify'}[a], body); toast('บันทึกแล้ว'); if (a==='claim') qFilter='MINE'; }
+    box.querySelectorAll('[data-a]').forEach(x => x.disabled = true);
+    b.textContent = 'กำลังบันทึก…';
+    try{
+      const upd = await api({claim:'claim',release:'release',entered:'entered',return:'returnSub',verify:'verify'}[a], body);
+      // อัปเดตรายการในเครื่องทันทีจากผลที่ server ตอบ แล้วค่อยดึงคิวทั้งหมดเบื้องหลัง
+      const i = S.queue.items.findIndex(x=>x.id===upd.id); if (i>=0) S.queue.items[i] = upd;
+      toast({claim:'รับแล้ว ✓ ดูรูปแล้วป้อน กกท.', entered:'บันทึกแล้ว ✓ เลือกรายการถัดไป', release:'คืนคิวแล้ว', return:'ตีกลับแล้ว', verify:'ตรวจทานแล้ว'}[a]);
+      if (a==='claim') qFilter='MINE';
+      if (a==='entered' || a==='return' || a==='release'){ qFilter='SUBMITTED'; }
+    }
     catch(e){ toast(e.message, 4000); }
-    box.dataset.sig=''; await refreshQueue(); box.scrollIntoView({block:'start',behavior:'smooth'});
+    box.dataset.sig=''; renderQueue(); refreshQueue();
+    box.scrollIntoView({block:'start',behavior:'smooth'});
   });
 }
 function zoom(src, rot){
@@ -505,11 +613,11 @@ async function viewDash(){
   $('#dDate').onchange = e => { S.dashDate = e.target.value; refreshDash(); };
   $('#dR').onclick = refreshDash;
   await refreshDash();
-  every(30000, refreshDash);
+  every(60000, refreshDash);
 }
 async function refreshDash(){
   let d; try{ d = await api('dashboard', {date:S.dashDate}); }catch(e){ $('#dBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
-  $('#dAt').textContent = 'อัปเดต ' + hm(d.generatedAt) + ' น. · รีเฟรชเองทุก 30 วินาที';
+  $('#dAt').textContent = 'อัปเดต ' + hm(d.generatedAt) + ' น. · รีเฟรชเองทุก 1 นาที';
   const sm = d.summary, P = Object.fromEntries(d.people.map(p=>[p.code,p]));
   const remaining = sm.sportsTotal - sm.sportsComplete;
   const tile = (l,v,cls='',sub='') => `<div class="tile ${cls}"><div class="l">${l}</div><div class="v">${v}${sub?` <small>${sub}</small>`:''}</div></div>`;
@@ -550,58 +658,96 @@ async function refreshDash(){
     </div>`;
 }
 
-/* ---------- attendance (admin) ---------- */
-const AT = {post:['✅ อยู่ประจำจุด','green'], away:['⚠️ อยู่จุดอื่น','red'], left:['ออกแล้ว',''], absent:['ยังไม่มา','red']};
-let aFilter = 'ALL';
+/* ---------- attendance (admin): เวรต่อวัน ---------- */
+const DOW = ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'];
+const shortDate = d => { const [y,m,dd] = d.split('-').map(Number); return `${DOW[new Date(Date.UTC(y,m-1,dd)).getUTCDay()]} ${dd} ${['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][m]}`; };
+let aOnlyMissing = false;
 async function viewAttend(){
   if (!S.attDate) S.attDate = S.today;
-  $('#app').innerHTML = `<div class="toolbar"><select id="aDate"><option>${thDate(S.attDate)}</option></select>
-    <button class="btn sm" id="aR">รีเฟรช</button><span class="small muted" id="aAt"></span></div>
-    <div id="aBody"><div class="center-msg"><div class="spin"></div></div></div>`;
-  $('#aDate').onchange = e => { S.attDate = e.target.value; refreshAttend(); };
-  $('#aR').onclick = refreshAttend;
+  $('#app').innerHTML = `<div class="card" style="padding:12px 12px 4px"><div class="small muted">เลือกวันที่ (ตัวเลข = มาแล้ว / มีเวร)</div><div class="daychips" id="aDays"></div></div>
+    <div id="aBody"><div class="center-msg"><div class="spin"></div>กำลังโหลดเวร…</div></div>`;
+  if (S.att && S.att.date === S.attDate) renderAttend(S.att);
   await refreshAttend();
-  every(30000, refreshAttend);
+  every(60000, refreshAttend);
 }
 async function refreshAttend(){
-  let d; try{ d = await api('attendance', {date:S.attDate}); }catch(e){ $('#aBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
-  const testOf = Object.fromEntries(d.days.map(x=>[x.date, x.isTest]));
-  const dates = [...new Set([...d.days.map(x=>x.date), ...DAYS, S.today, S.attDate])].sort();
-  $('#aDate').innerHTML = dates.map(x=>`<option value="${x}" ${x===S.attDate?'selected':''}>${thDate(x)}${testOf[x]?' (ทดสอบ)':''}</option>`).join('');
-  $('#aAt').textContent = 'อัปเดต ' + hm(d.generatedAt) + ' น.';
-  const sm = d.summary;
-  const tile = (l,v,cls='',sub='') => `<div class="tile ${cls}"><div class="l">${l}</div><div class="v">${v}${sub?` <small>${sub}</small>`:''}</div></div>`;
-  const nm = p => esc(p.code+' '+String(p.name||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''));
-  const F = [['ALL','ทั้งหมด',d.people.length],['absent','ยังไม่มา',sm.absent],['away','อยู่จุดอื่น',sm.away],['post','ประจำจุด',sm.post],['left','ออกแล้ว',sm.left],['extra','ไม่มีเวร',sm.extra]];
-  const shown = d.people.filter(p => aFilter==='ALL' || (aFilter==='extra' ? !p.rostered : p.status===aFilter))
-    .sort((a,b)=> (a.role==='center'?0:1)-(b.role==='center'?0:1) || (a.group||'').localeCompare(b.group||'','th') || a.code.localeCompare(b.code));
-  const row = p => `<tr>
-    <td><b>${nm(p)}</b> ${p.role==='center'?'<span class="tag">ศูนย์</span>':p.group?`<span class="tag">กลุ่ม ${esc(p.group)}</span>`:''}${p.rostered?'':'<span class="tag">ไม่มีเวร</span>'}
-      <div class="small muted">${p.posts.length?'จุด: '+p.posts.map(esc).join(', '):p.rostered?'ไม่มีกีฬาของกลุ่มวันนี้':''}</div></td>
-    <td><span class="tag ${AT[p.status][1]}">${AT[p.status][0]}</span>${p.now?`<div class="small">${esc(p.now)}</div>`:''}
-      <div class="small muted">${p.firstIn?'เข้า '+hm(p.firstIn)+' น.':''}${p.lastOut?' · ออก '+hm(p.lastOut)+' น.':''}</div>
-      ${p.trail.length>1?`<div class="small muted">${p.trail.map(t=>hm(t.inAt)+' '+esc(t.sport||'-')).join(' → ')}</div>`:''}</td>
-    <td>${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}</td></tr>`;
-  $('#aBody').innerHTML = `
-    <div class="tiles">
-      ${tile('มาแล้ว', sm.came, '', `/ ${sm.rostered} คนที่มีเวร`)}
-      ${tile('✅ อยู่ประจำจุด', sm.post)}
-      ${tile('⚠️ อยู่จุดอื่น', sm.away, sm.away?'alert':'')}
-      ${tile('ออกแล้ว', sm.left)}
-      ${tile('ยังไม่มา', sm.absent, d.isToday&&sm.absent?'alert':'')}
-      ${tile('มาช่วย (ไม่มีเวร)', sm.extra)}
-    </div>
-    <div class="card"><h2>รายชื่อ ${thDate(d.date)}</h2>
-      <div class="pills" id="aF" style="margin-bottom:8px">${F.map(([k,l,n])=>`<button class="pill ${aFilter===k?'on':''}" data-f="${k}">${l} <b>${n}</b></button>`).join('')}</div>
-      <p class="small muted" style="margin:0 0 6px">"ประจำจุด" = เช็กอินอยู่ที่ชนิดกีฬาของกลุ่มตัวเอง (ศูนย์ = เช็กอินเข้าศูนย์)</p>
-      <div class="tbl-wrap"><table><thead><tr><th>ชื่อ / จุดที่ได้รับมอบหมาย</th><th>สถานะ</th><th></th></tr></thead><tbody>
-      ${shown.map(row).join('') || '<tr><td colspan="3" class="muted">ไม่มีรายชื่อ</td></tr>'}</tbody></table></div></div>
-    <div class="card"><h2>สรุปทุกวัน</h2><div class="tbl-wrap"><table><thead><tr><th>วันที่</th><th>มาแล้ว / มีเวร</th><th>มาช่วย</th></tr></thead><tbody>
-      ${d.days.map(x=>`<tr data-d="${x.date}" style="cursor:pointer${x.date===d.date?';background:var(--accent-weak)':''}"><td>${thDate(x.date)}${x.isTest?' <span class="tag">ทดสอบ</span>':''}</td><td>${x.came} / ${x.rostered}</td><td>${x.extra||''}</td></tr>`).join('')}
-      </tbody></table></div><p class="small muted">แตะวันที่เพื่อดูรายชื่อ</p></div>`;
-  $('#aF').onclick = e => { const b=e.target.closest('[data-f]'); if(b){ aFilter=b.dataset.f; refreshAttend(); } };
-  $('#aBody').querySelectorAll('tr[data-d]').forEach(tr => tr.onclick = () => { S.attDate = tr.dataset.d; refreshAttend(); window.scrollTo({top:0,behavior:'smooth'}); });
+  try{ S.att = await api('attendance', {date:S.attDate}); }
+  catch(e){ if ($('#aBody')) $('#aBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  if (S.tab==='attend' && $('#aBody')) renderAttend(S.att);
 }
+function renderAttend(d){
+  const days = d.days.some(x=>x.date===d.date) ? d.days : [...d.days, {date:d.date, rostered:0, came:0}].sort((a,b)=>a.date<b.date?-1:1);
+  $('#aDays').innerHTML = days.map(x=>`<button class="daychip ${x.date===d.date?'on':''}" data-d="${x.date}"><b>${shortDate(x.date)}</b><small>${x.came}/${x.rostered}${x.date===S.today?' · วันนี้':''}${x.isTest?' · ทดสอบ':''}</small></button>`).join('');
+  $('#aDays').onclick = e => { const b=e.target.closest('[data-d]'); if(!b || b.dataset.d===S.attDate) return; S.attDate=b.dataset.d; S.att=null;
+    $('#aBody').innerHTML = '<div class="center-msg"><div class="spin"></div>กำลังโหลดเวร…</div>'; renderAttendDays(b.dataset.d); refreshAttend(); };
+  const on = $('#aDays .on'); if (on) on.scrollIntoView({inline:'center', block:'nearest'});
+
+  const sm = d.summary;
+  const nm = p => esc(p.code+' '+String(p.name||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''));
+  const sections = [];
+  const ros = d.people.filter(p=>p.rostered);
+  const center = ros.filter(p=>p.role==='center');
+  if (center.length) sections.push({title:'ศูนย์ป้อนข้อมูล', posts:['ศูนย์ป้อนข้อมูล'], people:center});
+  [...new Set(ros.filter(p=>p.role!=='center').map(p=>p.group||''))].sort((a,b)=>a.localeCompare(b,'th')).forEach(g => {
+    const ps = ros.filter(p=>p.role!=='center' && (p.group||'')===g);
+    sections.push({title:'ภาคสนาม'+(g?' กลุ่ม '+g:''), posts:ps[0].posts, people:ps});
+  });
+  const extra = d.people.filter(p=>!p.rostered);
+  if (extra.length) sections.push({title:'มาช่วย (ไม่มีเวรวันนี้)', posts:[], people:extra});
+
+  const came = p => p.firstIn ? `<span class="yes">✓ ${hm(p.firstIn)}</span>` : `<span class="no">✗ ยังไม่มา</span>`;
+  const post = p => p.status==='post' ? `<span class="yes">✓ ${esc(p.now)}</span>`
+    : p.status==='away' ? `<span class="warn">⚠️ อยู่ที่ ${esc(p.now||'-')}</span>`
+    : p.status==='left' ? `<span class="muted">ออกแล้ว ${hm(p.lastOut)}</span>` : `<span class="muted">—</span>`;
+  const row = p => `<tr><td><b>${nm(p)}</b>${p.replaces?`<div><span class="tag" style="background:var(--warn-weak);border-color:var(--warn)">แทน ${esc(p.replaces+' '+String(p.replacesName||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''))}</span></div>`:''}
+      ${p.trail.length>1?`<div class="small muted">${p.trail.map(t=>hm(t.inAt)+' '+esc(t.sport||'-')).join(' → ')}</div>`:''}
+      <div class="acts">${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}
+      ${p.rostered ? (p.replaces ? `<button class="linkbtn" data-unsub="${esc(p.code)}" data-o="${esc(p.replaces)}">ยกเลิกแทน</button>` : `<button class="linkbtn" data-sub="${esc(p.code)}">ระบุคนแทน</button>`) : ''}</div></td>
+    <td><div>${came(p)}</div><div style="margin-top:2px">${post(p)}</div></td></tr>`;
+  const pct = sm.rostered ? Math.round(sm.came/sm.rostered*100) : 0;
+  $('#aBody').innerHTML = `
+    <div class="card">
+      <div class="hrow"><h2 style="margin:0">เวรวันที่ ${thDate(d.date)}</h2><span class="small muted">อัปเดต ${hm(d.generatedAt)} น.</span></div>
+      ${sm.rostered ? `<div class="bigline">มาแล้ว <b>${sm.came}</b> / ${sm.rostered} คน · ประจำตำแหน่ง <b>${sm.post}</b> · ยังไม่มา <b class="${sm.absent&&d.isToday?'no':''}">${sm.absent}</b>${sm.away?` · อยู่ผิดจุด <b class="warn">${sm.away}</b>`:''}</div>
+        <div class="seg" style="height:10px;margin-top:8px"><span class="s-done" style="flex:${sm.post}"></span><span class="s-pend" style="flex:${sm.away+sm.left}"></span><span class="s-left" style="flex:${sm.absent}"></span></div>
+        <div class="small muted" style="margin-top:4px">มาแล้ว ${pct}% · <span class="dot" style="background:var(--good)"></span>ประจำตำแหน่ง <span class="dot" style="background:var(--warn)"></span>อยู่จุดอื่น/ออกแล้ว <span class="dot" style="background:var(--line)"></span>ยังไม่มา</div>
+        <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="aMiss" ${aOnlyMissing?'checked':''}> แสดงเฉพาะคนที่ยังไม่ได้ประจำตำแหน่ง</label>`
+      : '<p class="muted">ไม่มีเวรในวันนี้</p>'}
+    </div>
+    ${sections.map(sec => { const ps = sec.people.filter(p=>!aOnlyMissing || p.status!=='post');
+      const c1 = sec.people.filter(p=>p.firstIn).length, c2 = sec.people.filter(p=>p.status==='post').length;
+      return `<div class="card"><div class="hrow"><h2 style="margin:0">${esc(sec.title)}</h2><span class="small">มา <b>${c1}</b>/${sec.people.length} · ประจำ <b>${c2}</b></span></div>
+        ${sec.posts.length?`<div class="small muted" style="margin:4px 0 6px">ตำแหน่ง: ${sec.posts.map(esc).join(', ')}</div>`:''}
+        ${ps.length ? `<div class="tbl-wrap"><table class="att"><thead><tr><th>ชื่อ</th><th>มาแล้ว / ประจำตำแหน่ง</th></tr></thead><tbody>${ps.map(row).join('')}</tbody></table></div>`
+          : '<p class="small muted">ทุกคนประจำตำแหน่งแล้ว ✓</p>'}</div>`; }).join('')}`;
+  if ($('#aMiss')) $('#aMiss').onchange = e => { aOnlyMissing = e.target.checked; renderAttend(d); };
+  $('#aBody').onclick = async e => {
+    const sb = e.target.closest('[data-sub]'), us = e.target.closest('[data-unsub]');
+    if (sb){ const p = d.people.find(x=>x.code===sb.dataset.sub); const sub = await subDlg(p, d); if (!sub) return;
+      try{ await api('adminSubstitute', {date:d.date, code:p.code, sub}); toast(`บันทึกแล้ว: ${sub} แทน ${p.replaces||p.code}`); }catch(err){ toast(err.message, 4000); }
+      refreshAttend(); }
+    if (us && await confirmDlg('ยกเลิกการแทน?', `คืนเวรวันที่ ${thDate(d.date)} ให้ <b>${esc(us.dataset.o)}</b> · ${esc(us.dataset.unsub)} จะกลับเป็นบทบาทเดิม`, 'ยกเลิกการแทน')){
+      try{ await api('adminSubstitute', {date:d.date, code:us.dataset.unsub, cancel:true}); toast('คืนเวรแล้ว'); }catch(err){ toast(err.message, 4000); }
+      refreshAttend(); }
+  };
+}
+// เลือกคนแทน: แสดงเฉพาะคนที่ไม่มีเวรวันนั้น แยกตามบทบาทเดิม · คนแทนได้สิทธิ์ตามตำแหน่งนี้เฉพาะวันนั้น
+function subDlg(p, d){
+  const busy = new Set(d.people.filter(x=>x.rostered).map(x=>x.code));
+  const free = d.staff.filter(s=>!busy.has(s.code));
+  const pos = p.role==='center' ? 'ศูนย์ป้อนข้อมูล' : 'ภาคสนาม' + (p.group?' กลุ่ม '+p.group:'');
+  const opt = s => `<option value="${esc(s.code)}">${esc(s.code+' '+s.name)}${s.role==='field'&&s.group?' (กลุ่ม '+esc(s.group)+')':''}</option>`;
+  const grp = (role, label) => { const xs = free.filter(s=>s.role===role); return xs.length?`<optgroup label="${label}">${xs.map(opt).join('')}</optgroup>`:''; };
+  return new Promise(res => { const dl = dlg(`<h2>ระบุคนแทน</h2>
+    <dl class="kv"><dt>เวรของ</dt><dd>${esc(p.replaces ? p.replaces+' (ตอนนี้ '+p.code+' แทนอยู่)' : p.code+' '+p.name)}</dd><dt>วันที่</dt><dd>${thDate(d.date)}</dd><dt>ตำแหน่ง</dt><dd>${esc(pos)}</dd></dl>
+    <label class="f">คนที่มาแทน (เฉพาะคนที่ไม่มีเวรวันนี้)</label>
+    <select id="sv"><option value="">— เลือก —</option>${grp('field','ภาคสนาม')}${grp('center','ศูนย์ป้อนข้อมูล')}</select>
+    <p class="small muted">คนแทนจะได้หน้าจอและสิทธิ์ของ "${esc(pos)}" เฉพาะวันนี้ วันอื่นใช้บทบาทเดิม ต้องลงทะเบียนในแอปแล้วจึงจะเข้าใช้ได้</p>
+    <div class="row"><button class="btn" id="dn">ยกเลิก</button><button class="btn pri" id="dy">บันทึก</button></div>`);
+    $('#dy').onclick = () => { const v = $('#sv').value; if (!v) return; dl.close(); res(v); };
+    $('#dn').onclick = () => { dl.close(); res(null); }; dl.oncancel = () => res(null); });
+}
+function renderAttendDays(sel){ document.querySelectorAll('#aDays .daychip').forEach(b=>b.classList.toggle('on', b.dataset.d===sel)); }
 
 /* ---------- admin ---------- */
 async function viewAdmin(){
@@ -662,6 +808,81 @@ async function viewAdmin(){
     if (r){ toast(r.already ? 'มีวันทดสอบนี้อยู่แล้ว' : `สร้างแล้ว: ${r.roster} คน ${r.sports} ชนิดกีฬา ${r.matches} คู่`, 4000); await api('me').then(m=>{ S.today=m.today; S.demo=m.demo; }); route(); }
   };
   $('#clr').onclick = async () => { if (await confirmDlg('ลบรายการทดสอบทั้งหมด?', `${d.testCount} รายการและรูปที่แนบจะถูกลบ`, 'ลบ')){ const r = await api('adminClearTests').catch(x=>toast(x.message)); if(r) toast('ลบแล้ว '+r.removed+' รายการ'); viewAdmin(); } };
+}
+
+/* ---------- help / คู่มือ ---------- */
+const HELP = {
+  field: ['ภาคสนาม', `
+    <h3>ก่อนวันงาน: ลงทะเบียน (ทำครั้งเดียว)</h3>
+    <ol><li>เปิดลิงก์ระบบในแอป LINE</li><li>ใส่รหัสนักศึกษา + เบอร์โทร 4 ตัวท้าย แล้วกดยืนยัน</li><li>ถ้าขึ้น "รอผู้ดูแลอนุมัติ" ให้แจ้งผู้ดูแล</li></ol>
+    <h3>① เช็กอิน — เมื่อไปถึงสนาม</h3>
+    <ul><li>แท็บ ① → เลือกชนิดกีฬาที่คุณประจำ (กีฬาของกลุ่มคุณอยู่ด้านบน)</li><li>ย้ายสนาม → กลับมาแท็บ ① แล้วเลือกกีฬาใหม่</li></ul>
+    <h3>② ส่งผล — ทุกครั้งที่จบ 1 คู่</h3>
+    <ol><li>ตรวจฟอร์ม: คะแนนครบ และกรรมการเซ็นแล้ว</li><li>เลือกชนิดกีฬา → เลือกคู่ที่ (ตามเลขบนฟอร์ม)</li>
+      <li>ถ่ายรูปให้ <b>ติดทั้งแผ่น</b> วางบนพื้นเรียบ ไม่ย้อนแสง (ได้ไม่เกิน 3 รูป)</li><li>กดส่ง แล้วรอ 5–15 วินาที อย่าปิดหน้าจอ</li>
+      <li>ได้ <b>เลขรับเรื่อง</b> เช่น 07-015 → เขียนที่มุมขวาบนของฟอร์ม แล้วเก็บฟอร์มไว้</li></ol>
+    <h3>③ ติดตามผล</h3>
+    <ul><li>⏳ รอรับ → ✍️ กำลังป้อน → ✅ ป้อน กกท. แล้ว</li><li>↩️ ตีกลับ = ศูนย์อ่านไม่ได้หรือข้อมูลไม่ตรง → อ่านเหตุผล ถ่ายรูปใหม่ แล้วกดส่งในหน้า ③</li></ul>
+    <h3>④ จบงานวันนี้</h3>
+    <ol><li>กีฬาที่ไม่มีตารางคู่: หน้า ② เลือกกีฬา → "ปิดวันนี้" → ใส่จำนวนคู่ทั้งหมด</li><li>ตรวจว่าไม่มีรายการ ↩️ ค้าง</li><li>ส่งฟอร์มกระดาษให้ศูนย์</li><li>หน้า ① กด "เลิกงาน"</li></ol>
+    <h3>ปัญหาที่พบบ่อย</h3>
+    <div class="q">กดส่งแล้วหมุนนาน หรือขึ้น "เชื่อมต่อไม่ได้"</div><div>รูปและข้อมูลยังอยู่ในเครื่อง กด "ส่งอีกครั้ง" ได้เลย ระบบไม่บันทึกซ้ำ ถ้าส่งไม่ได้ 3 ครั้ง หรือรอเกิน 2 นาที → ใช้ <b>แผนสำรอง</b></div>
+    <div class="q">ขึ้น "คู่นี้มีคนส่งแล้ว"</div><div>ตรวจเลขคู่บนฟอร์มอีกครั้ง ถ้าเลือกผิดให้กด "กลับไปแก้" ถ้าถูกแน่นอนกด "ส่งซ้ำ" ศูนย์จะตรวจให้</div>
+    <div class="q">มาเวรไม่ได้ / มาแทนคนอื่น</div><div>แจ้งผู้ดูแลล่วงหน้าว่าใครมาแทน ผู้ดูแลจะระบุในระบบ วันนั้นคนแทนเปิดแอปจะเห็นหน้าจอของตำแหน่งนั้นเอง (หัวจอขึ้น "วันนี้มาแทน …")</div>
+    <div class="q">เลขคู่ ช1 / ญ1 คืออะไร</div><div>วอลเลย์บอล และบาสเกตบอล 3x3 นับคู่แยกชาย/หญิง ให้เลือกหรือพิมพ์ <b>ช</b> (ชาย) หรือ <b>ญ</b> (หญิง) นำหน้าเลข เช่น ช3, ญ1 ตามฟอร์ม · กีฬาอื่นใช้เลขอย่างเดียว</div>
+    <div class="q">ไม่เห็นกีฬาที่ต้องการ</div><div>กด "+ กีฬาอื่นวันนี้" ใต้รายการกีฬา</div>
+    <div class="q">ส่งผิดคู่ / ผิดกีฬา</div><div>แจ้งศูนย์ให้กด "ตีกลับ" แล้วส่งใหม่ให้ถูก</div>`],
+  center: ['ศูนย์ป้อนข้อมูล', `
+    <h3>① เข้าศูนย์</h3><ul><li>แท็บ ① → กด "เข้าศูนย์แล้ว" (ทำครั้งเดียวต่อวัน)</li><li>ใช้บนคอมได้: เปิดลิงก์ในเบราว์เซอร์ แล้วล็อกอิน LINE · เปิดหน้าคิวค้างไว้ มีเสียงเตือนเมื่อมีรายการใหม่</li></ul>
+    <h3>② คิวรับผล — ทำทีละรายการ</h3>
+    <ol><li>แถบ "รอรับ" → แตะรายการ → กด <b>รับรายการนี้</b> (ล็อกไว้ให้คุณคนเดียว คนอื่นรับซ้ำไม่ได้)</li>
+      <li>ดูรูป (แตะรูปเพื่อขยาย, ⟳ หมุน, เลือกรูป 1/2/3) → ป้อนผลในระบบ กกท.</li>
+      <li>กด <b>ป้อน กกท. แล้ว</b> → ยืนยัน → เลือกรายการถัดไป</li></ol>
+    <h3>กรณีพิเศษ</h3>
+    <ul><li><b>ตีกลับ</b>: รูปไม่ชัด / ไม่มีลายเซ็น / คู่ไม่ตรง → กด "ตีกลับ" เลือกเหตุผล ภาคสนามจะถ่ายส่งใหม่</li>
+      <li><b>คืนคิว</b>: รับไว้แล้วทำต่อไม่ได้ → กด "คืนคิว" ให้คนอื่นรับ</li>
+      <li>ป้ายแดง <b>"ซ้ำกับ xx-xxx"</b>: มีคนส่งคู่เดียวกันแล้ว เทียบรูปกับรายการเดิม ถ้าซ้ำจริงให้ตีกลับว่า "ส่งซ้ำ"</li>
+      <li>แถบ <b>"ของฉัน"</b> = รายการที่รับไว้แต่ยังไม่กดป้อนแล้ว ต้องเป็น 0 ก่อนเลิกงาน</li></ul>
+    <h3>จบงานวันนี้</h3><ol><li>ป้อนหรือคืนคิวรายการที่รับไว้ให้หมด</li><li>รับฟอร์มกระดาษจากภาคสนาม ตรวจว่ามีเลขรับเรื่องครบ</li><li>หน้า ① กด "เลิกงาน"</li></ol>`],
+  viewer: ['เจ้าหน้าที่', `
+    <h3>ขอสิทธิ์ (ครั้งเดียว)</h3><ol><li>เปิดลิงก์ระบบในแอป LINE</li><li>การ์ด "สำหรับเจ้าหน้าที่ / ผู้ควบคุมงาน" → พิมพ์ชื่อ-ตำแหน่ง → "ขอสิทธิ์ดูภาพรวม"</li><li>รอผู้ดูแลอนุมัติ แล้วกด "ตรวจสอบอีกครั้ง"</li></ol>
+    <h3>อ่านหน้าภาพรวม</h3>
+    <ul><li>ตัวเลขด้านบน: ชนิดกีฬาที่ยังรอผล, ผลค้าง, รายการที่รอศูนย์รับ / กำลังป้อน / ป้อนแล้ว, จำนวนผู้ช่วยงานที่เช็กอิน</li>
+      <li>แถบความคืบหน้า: <span class="dot" style="background:var(--good)"></span>ป้อน กกท. แล้ว <span class="dot" style="background:var(--warn)"></span>ส่งแล้วรอป้อน <span class="dot" style="background:var(--line)"></span>ยังไม่ส่ง</li>
+      <li><span class="tag red">⚠️ คู่ 3 (09:00)</span> = ผลค้าง: เลยเวลาจบโดยประมาณแล้ว แต่ยังไม่มีใครส่งผลคู่นั้น</li>
+      <li><span class="tag green">✅ ครบ</span> = ทุกคู่ของชนิดกีฬานั้นป้อน กกท. แล้ว</li>
+      <li>รายชื่อผู้ช่วยงาน: <span class="dot d-in"></span>อยู่หน้างาน <span class="dot d-out"></span>ออกแล้ว <span class="dot d-none"></span>ยังไม่เช็กอิน</li>
+      <li>เลือกวันอื่นได้จากช่องวันที่ หน้านี้รีเฟรชเองทุก 1 นาที</li></ul>
+    <p>บัญชีนี้ดูได้อย่างเดียว แก้ไขข้อมูลไม่ได้ ถ้าพบปัญหาแจ้งผู้ดูแลระบบ</p>`],
+  admin: ['ผู้ดูแล', `
+    <h3>งานประจำวัน</h3><ul><li><b>การมาทำงาน</b>: เลือกวัน → ดูว่าใครมาแล้ว และอยู่ประจำตำแหน่งหรือยัง (ติ๊ก "แสดงเฉพาะคนที่ยังไม่ได้ประจำตำแหน่ง" เพื่อดูคนที่ต้องตาม)</li>
+      <li><b>มีคนมาแทน</b>: หน้าการมาทำงาน → เลือกวัน → กด "ระบุคนแทน" ข้างชื่อเจ้าของเวร → เลือกคนแทน คนแทนจะได้หน้าจอและสิทธิ์ของตำแหน่งนั้นเฉพาะวันนั้น (ข้ามบทบาทได้ เช่น ภาคสนามมาแทนศูนย์) กด "ยกเลิกแทน" เพื่อคืนเวร · ระบุล่วงหน้าได้</li>
+      <li><b>ภาพรวม</b>: ดูผลค้าง (แดง) แล้วโทรหาภาคสนามของกลุ่มนั้น</li><li><b>ผู้ดูแล</b>: อนุมัติคนที่ไม่มีเบอร์ / เจ้าหน้าที่ดูภาพรวม, ยกเลิกการผูกบัญชีเมื่อ นศ. เปลี่ยนเครื่อง</li></ul>
+    <h3>แก้ข้อมูลในชีต</h3><ul><li>แก้ Staff (เบอร์), Roster, SportDays, Matches, Config ได้โดยตรง มีผลภายใน 1 นาที</li><li>อย่าแก้ Bindings / Checkins / Submissions / Log ระหว่างใช้งาน</li></ul>
+    <h3>ก่อนวันที่ 4 ธ.ค.</h3><ol><li>ลบวันทดสอบ และกด "ลบรายการทดสอบ"</li><li>ล้างค่า DEMO_DATE ในชีต Config</li><li>ตรวจ DEV_MODE = false</li><li>นำเข้าตารางคู่ลงชีต Matches</li></ol>`],
+  backup: ['🆘 แผนสำรอง', `
+    <h3>ใช้เมื่อไร</h3><ul><li>เปิดระบบไม่ได้ หรือส่งไม่สำเร็จ 3 ครั้ง หรือรอเกิน 2 นาที</li><li>ผู้ดูแลประกาศในกลุ่มว่า "ใช้แผนสำรอง"</li></ul>
+    <h3>ภาคสนาม</h3><ol><li>ถ่ายรูปฟอร์มส่งเข้า <b>กลุ่ม LINE</b> พร้อมข้อความ<br><code>#ชนิดกีฬา คู่ที่ รหัสเวร</code> เช่น <code>#ตะกร้อ คู่3 F39</code></li>
+      <li>เก็บฟอร์มกระดาษไว้ตามปกติ</li><li>เมื่อระบบกลับมา ส่งรายการเดิมเข้าระบบด้วย (เพื่อให้ประวัติครบ) ร่างที่ค้างอยู่ยังอยู่ในเครื่อง</li></ol>
+    <h3>ศูนย์</h3><ol><li>เปิดกลุ่ม LINE บนคอม ก่อนป้อนให้ <b>ตอบกลับ</b> รูปนั้นว่า <code>รับ C04</code> (กันสองคนป้อนคู่เดียวกัน)</li>
+      <li>ป้อน กกท. จากรูป แล้วตอบกลับว่า <code>ป้อนแล้ว C04</code></li>
+      <li>เมื่อระบบกลับมาและภาคสนามส่งย้อนหลัง: กด "รับ" → "ป้อน กกท. แล้ว" ได้เลย <b>ไม่ต้องป้อน กกท. ซ้ำ</b></li></ol>
+    <h3>สำรองสุดท้าย</h3><p>ฟอร์มกระดาษตัวจริงคือหลักฐานหลักเสมอ ถ้าเน็ตล่มทั้งสนาม ให้ส่งฟอร์มกระดาษเข้าศูนย์ทุกครั้งที่มีคนเดินไปศูนย์</p>`]
+};
+function viewHelp(unbound){
+  const role = unbound ? 'field' : (S.me && S.me.role) || 'field';
+  const keys = ['field','center','viewer'].concat(role==='admin'?['admin']:[]).concat(['backup']);
+  let cur = S.helpTab && keys.includes(S.helpTab) ? S.helpTab : (keys.includes(role) ? role : 'field');
+  const render = () => {
+    $('#app').innerHTML = `<div class="card help" style="max-width:760px;margin:0 auto">
+      ${unbound?'<button class="btn sm" id="hBack" style="margin-bottom:10px">← กลับไปลงทะเบียน</button>':''}
+      <h2>วิธีใช้ / คู่มือ</h2>
+      <div class="pills" id="hT">${keys.map(k=>`<button class="pill ${k===cur?'on':''}" data-k="${k}">${HELP[k][0]}${k===role&&!unbound?' (คุณ)':''}</button>`).join('')}</div>
+      <div id="hBody">${HELP[cur][1]}</div></div>`;
+    $('#hT').onclick = e => { const b=e.target.closest('[data-k]'); if(b){ cur = S.helpTab = b.dataset.k; render(); } };
+    if ($('#hBack')) $('#hBack').onclick = viewBind;
+  };
+  render();
 }
 
 /* ---------- dialogs ---------- */
