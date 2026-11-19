@@ -197,20 +197,21 @@ function route(){
   const me = S.me;
   if (!me.bound){ $('#hdr').hidden = true; return me.pending ? viewPending() : viewBind(); }
   $('#hdr').hidden = false;
-  $('#who').innerHTML = `${esc(me.code==='ADMIN' ? 'ผู้ดูแลระบบ' : me.code+' · '+me.name)}<small>${{field:'ภาคสนาม'+(me.group?' กลุ่ม '+me.group:''),center:'ศูนย์ป้อนข้อมูล',admin:'ผู้ดูแล'}[me.role]||''}${me.lineName?' · LINE: '+esc(me.lineName):''}</small>`;
+  $('#who').innerHTML = `${esc(me.code==='ADMIN' ? 'ผู้ดูแลระบบ' : me.code==='VIEWER' ? me.name : me.code+' · '+me.name)}<small>${{field:'ภาคสนาม'+(me.group?' กลุ่ม '+me.group:''),center:'ศูนย์ป้อนข้อมูล',admin:'ผู้ดูแล',viewer:'เจ้าหน้าที่ · ดูอย่างเดียว'}[me.role]||''}${me.lineName?' · LINE: '+esc(me.lineName):''}</small>`;
   $('#dateChip').textContent = thDate(S.today);
   $('#demoChip').hidden = !S.demo;
   const tabs = {
     field:  [['submit','ส่งผล'],['checkin','เช็กอิน'],['mine','ของฉัน'],['dash','ภาพรวม']],
     center: [['queue','คิวรับผล'],['dash','ภาพรวม'],['checkin','เช็กอิน']],
-    admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['admin','ผู้ดูแล'],['submit','ส่งผล']],
-  }[me.role];
+    admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['attend','การมาทำงาน'],['admin','ผู้ดูแล'],['submit','ส่งผล']],
+    viewer: [['dash','ภาพรวม']],
+  }[me.role] || [['dash','ภาพรวม']];
   const want = qs.get('tab');
   if (!S.tab || !tabs.some(t=>t[0]===S.tab)) S.tab = tabs.some(t=>t[0]===want) ? want : tabs[0][0];
   $('#tabs').innerHTML = tabs.map(([k,l])=>`<button data-k="${k}" class="${k===S.tab?'on':''}">${l}${k==='queue'?'<span class="badge" id="qBadge" hidden></span>':''}${k==='mine'?'<span class="badge" id="mBadge" hidden></span>':''}</button>`).join('');
   $('#tabs').onclick = e => { const b=e.target.closest('button'); if(b){ S.tab=b.dataset.k; route(); } };
   clearTimers();
-  ({submit:viewSubmit, checkin:viewCheckin, mine:viewMine, queue:viewQueue, dash:viewDash, admin:viewAdmin})[S.tab]();
+  ({submit:viewSubmit, checkin:viewCheckin, mine:viewMine, queue:viewQueue, dash:viewDash, attend:viewAttend, admin:viewAdmin})[S.tab]();
 }
 
 /* ---------- bind ---------- */
@@ -227,18 +228,26 @@ function viewBind(){
       <label class="f">รหัสผู้ดูแล (PIN)</label><input id="pin" type="tel" inputmode="numeric">
       <button class="btn block" id="aGo" style="margin-top:10px">ลงทะเบียนเป็นผู้ดูแล</button>
     </details>
+  </div>
+  <div class="card" style="max-width:480px;margin:0 auto">
+    <h2>สำหรับเจ้าหน้าที่ / ผู้ควบคุมงาน</h2>
+    <p class="muted small">ไม่ใช่นักศึกษา ต้องการดูภาพรวมอย่างเดียว ใส่ชื่อแล้วรอผู้ดูแลอนุมัติ</p>
+    <label class="f">ชื่อ-ตำแหน่ง</label><input id="vName" type="text" maxlength="60" placeholder="เช่น อ.สมชาย ใจดี ฝ่ายประมวลผล">
+    <div id="vErr" style="margin-top:10px"></div>
+    <button class="btn block" id="vGo" style="margin-top:10px">ขอสิทธิ์ดูภาพรวม</button>
   </div>`;
-  const go = async body => {
-    $('#bErr').innerHTML='';
+  const go = async (body, errBox='#bErr') => {
+    $('#bErr').innerHTML=''; $('#vErr').innerHTML='';
     try{ const r = await api('bind', body); if (r.status==='pending') toast('ส่งคำขอแล้ว รอผู้ดูแลอนุมัติ'); await api('me'); route(); }
-    catch(e){ $('#bErr').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+    catch(e){ $(errBox).innerHTML = `<div class="err">${esc(e.message)}</div>`; }
   };
   $('#bGo').onclick = () => go({studentId:$('#sid').value, last4:$('#l4').value});
   $('#aGo').onclick = () => go({code:'ADMIN', pin:$('#pin').value});
+  $('#vGo').onclick = () => go({code:'VIEWER', name:$('#vName').value}, '#vErr');
 }
 function viewPending(){
   $('#app').innerHTML = `<div class="card" style="max-width:480px;margin:24px auto;text-align:center">
-    <h2>รอผู้ดูแลอนุมัติ</h2><p>ไม่มีเบอร์โทรของคุณในรายชื่อ ผู้ดูแลจะตรวจสอบและอนุมัติให้</p>
+    <h2>รอผู้ดูแลอนุมัติ</h2><p>${S.me.pendingAs==='viewer' ? 'ส่งคำขอดูภาพรวมแล้ว แจ้งผู้ดูแลให้กดอนุมัติ' : 'ไม่มีเบอร์โทรของคุณในรายชื่อ ผู้ดูแลจะตรวจสอบและอนุมัติให้'}</p>
     <button class="btn block" onclick="api('me').then(route)">ตรวจสอบอีกครั้ง</button></div>`;
 }
 
@@ -541,20 +550,89 @@ async function refreshDash(){
     </div>`;
 }
 
+/* ---------- attendance (admin) ---------- */
+const AT = {post:['✅ อยู่ประจำจุด','green'], away:['⚠️ อยู่จุดอื่น','red'], left:['ออกแล้ว',''], absent:['ยังไม่มา','red']};
+let aFilter = 'ALL';
+async function viewAttend(){
+  if (!S.attDate) S.attDate = S.today;
+  $('#app').innerHTML = `<div class="toolbar"><select id="aDate"><option>${thDate(S.attDate)}</option></select>
+    <button class="btn sm" id="aR">รีเฟรช</button><span class="small muted" id="aAt"></span></div>
+    <div id="aBody"><div class="center-msg"><div class="spin"></div></div></div>`;
+  $('#aDate').onchange = e => { S.attDate = e.target.value; refreshAttend(); };
+  $('#aR').onclick = refreshAttend;
+  await refreshAttend();
+  every(30000, refreshAttend);
+}
+async function refreshAttend(){
+  let d; try{ d = await api('attendance', {date:S.attDate}); }catch(e){ $('#aBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  const testOf = Object.fromEntries(d.days.map(x=>[x.date, x.isTest]));
+  const dates = [...new Set([...d.days.map(x=>x.date), ...DAYS, S.today, S.attDate])].sort();
+  $('#aDate').innerHTML = dates.map(x=>`<option value="${x}" ${x===S.attDate?'selected':''}>${thDate(x)}${testOf[x]?' (ทดสอบ)':''}</option>`).join('');
+  $('#aAt').textContent = 'อัปเดต ' + hm(d.generatedAt) + ' น.';
+  const sm = d.summary;
+  const tile = (l,v,cls='',sub='') => `<div class="tile ${cls}"><div class="l">${l}</div><div class="v">${v}${sub?` <small>${sub}</small>`:''}</div></div>`;
+  const nm = p => esc(p.code+' '+String(p.name||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''));
+  const F = [['ALL','ทั้งหมด',d.people.length],['absent','ยังไม่มา',sm.absent],['away','อยู่จุดอื่น',sm.away],['post','ประจำจุด',sm.post],['left','ออกแล้ว',sm.left],['extra','ไม่มีเวร',sm.extra]];
+  const shown = d.people.filter(p => aFilter==='ALL' || (aFilter==='extra' ? !p.rostered : p.status===aFilter))
+    .sort((a,b)=> (a.role==='center'?0:1)-(b.role==='center'?0:1) || (a.group||'').localeCompare(b.group||'','th') || a.code.localeCompare(b.code));
+  const row = p => `<tr>
+    <td><b>${nm(p)}</b> ${p.role==='center'?'<span class="tag">ศูนย์</span>':p.group?`<span class="tag">กลุ่ม ${esc(p.group)}</span>`:''}${p.rostered?'':'<span class="tag">ไม่มีเวร</span>'}
+      <div class="small muted">${p.posts.length?'จุด: '+p.posts.map(esc).join(', '):p.rostered?'ไม่มีกีฬาของกลุ่มวันนี้':''}</div></td>
+    <td><span class="tag ${AT[p.status][1]}">${AT[p.status][0]}</span>${p.now?`<div class="small">${esc(p.now)}</div>`:''}
+      <div class="small muted">${p.firstIn?'เข้า '+hm(p.firstIn)+' น.':''}${p.lastOut?' · ออก '+hm(p.lastOut)+' น.':''}</div>
+      ${p.trail.length>1?`<div class="small muted">${p.trail.map(t=>hm(t.inAt)+' '+esc(t.sport||'-')).join(' → ')}</div>`:''}</td>
+    <td>${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}</td></tr>`;
+  $('#aBody').innerHTML = `
+    <div class="tiles">
+      ${tile('มาแล้ว', sm.came, '', `/ ${sm.rostered} คนที่มีเวร`)}
+      ${tile('✅ อยู่ประจำจุด', sm.post)}
+      ${tile('⚠️ อยู่จุดอื่น', sm.away, sm.away?'alert':'')}
+      ${tile('ออกแล้ว', sm.left)}
+      ${tile('ยังไม่มา', sm.absent, d.isToday&&sm.absent?'alert':'')}
+      ${tile('มาช่วย (ไม่มีเวร)', sm.extra)}
+    </div>
+    <div class="card"><h2>รายชื่อ ${thDate(d.date)}</h2>
+      <div class="pills" id="aF" style="margin-bottom:8px">${F.map(([k,l,n])=>`<button class="pill ${aFilter===k?'on':''}" data-f="${k}">${l} <b>${n}</b></button>`).join('')}</div>
+      <p class="small muted" style="margin:0 0 6px">"ประจำจุด" = เช็กอินอยู่ที่ชนิดกีฬาของกลุ่มตัวเอง (ศูนย์ = เช็กอินเข้าศูนย์)</p>
+      <div class="tbl-wrap"><table><thead><tr><th>ชื่อ / จุดที่ได้รับมอบหมาย</th><th>สถานะ</th><th></th></tr></thead><tbody>
+      ${shown.map(row).join('') || '<tr><td colspan="3" class="muted">ไม่มีรายชื่อ</td></tr>'}</tbody></table></div></div>
+    <div class="card"><h2>สรุปทุกวัน</h2><div class="tbl-wrap"><table><thead><tr><th>วันที่</th><th>มาแล้ว / มีเวร</th><th>มาช่วย</th></tr></thead><tbody>
+      ${d.days.map(x=>`<tr data-d="${x.date}" style="cursor:pointer${x.date===d.date?';background:var(--accent-weak)':''}"><td>${thDate(x.date)}${x.isTest?' <span class="tag">ทดสอบ</span>':''}</td><td>${x.came} / ${x.rostered}</td><td>${x.extra||''}</td></tr>`).join('')}
+      </tbody></table></div><p class="small muted">แตะวันที่เพื่อดูรายชื่อ</p></div>`;
+  $('#aF').onclick = e => { const b=e.target.closest('[data-f]'); if(b){ aFilter=b.dataset.f; refreshAttend(); } };
+  $('#aBody').querySelectorAll('tr[data-d]').forEach(tr => tr.onclick = () => { S.attDate = tr.dataset.d; refreshAttend(); window.scrollTo({top:0,behavior:'smooth'}); });
+}
+
 /* ---------- admin ---------- */
 async function viewAdmin(){
   $('#app').innerHTML = `<div class="center-msg"><div class="spin"></div></div>`;
   let d; try{ d = await api('adminData'); }catch(e){ $('#app').innerHTML=`<div class="err">${esc(e.message)}</div>`; return; }
   const bound = d.staff.filter(s=>s.binding&&s.binding.status==='active').length;
   const pend = d.staff.filter(s=>s.binding&&s.binding.status==='pending');
+  const vPend = d.viewers.filter(v=>v.status==='pending');
+  const td = d.props.TEST_DATES;
   $('#app').innerHTML = `
     ${d.props.DEV_MODE?'<div class="err" style="margin-bottom:12px">DEV_MODE เปิดอยู่ — ปิด (ตั้งเป็น false) ก่อนใช้งานจริง</div>':''}
     ${d.props.DEMO_DATE?`<div class="hint" style="margin-bottom:12px">โหมดทดสอบ: ระบบถือว่าวันนี้คือ ${thDate(d.props.DEMO_DATE)} · ลบค่า DEMO_DATE ในชีต Config ก่อนวันงาน</div>`:''}
     <div class="tiles">
       <div class="tile"><div class="l">ผูกบัญชีแล้ว</div><div class="v">${bound} <small>/ ${d.staff.length}</small></div></div>
-      <div class="tile ${pend.length?'alert':''}"><div class="l">รออนุมัติ</div><div class="v">${pend.length}</div></div>
+      <div class="tile ${pend.length+vPend.length?'alert':''}"><div class="l">รออนุมัติ</div><div class="v">${pend.length+vPend.length}</div></div>
       <div class="tile"><div class="l">รายการทดสอบ</div><div class="v">${d.testCount}</div></div>
       <div class="tile"><div class="l">ผู้ดูแล</div><div class="v">${d.admins.length}</div></div>
+    </div>
+    <div class="card"><h2>เจ้าหน้าที่ดูภาพรวม (${d.viewers.length})</h2>
+      <p class="small muted">ผู้ที่ไม่ใช่ นศ. ขอสิทธิ์จากหน้าลงทะเบียน → อนุมัติแล้วเห็นเฉพาะแท็บภาพรวม แก้ไขข้อมูลไม่ได้</p>
+      ${d.viewers.length ? `<div class="tbl-wrap"><table><tbody>${d.viewers.sort((a,b)=>(a.status==='pending'?0:1)-(b.status==='pending'?0:1)).map(v=>`<tr>
+        <td>${esc(v.name)}<div class="small muted">ขอเมื่อ ${thDate(String(v.at).slice(0,10))} ${hm(v.at)} น.</div></td>
+        <td>${v.status==='active'?'<span class="tag green">อนุมัติแล้ว</span>':'<span class="tag red">รออนุมัติ</span>'}</td>
+        <td>${v.status==='pending'?`<button class="btn sm good" data-ap="${esc(v.userId)}">อนุมัติ</button> `:''}<button class="btn sm" data-ub="${esc(v.userId)}" data-c="${esc(v.name)}">${v.status==='pending'?'ปฏิเสธ':'ยกเลิกสิทธิ์'}</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<p class="muted small">ยังไม่มีคำขอ ส่งลิงก์ LIFF ให้เจ้าหน้าที่ แล้วให้กด "ขอสิทธิ์ดูภาพรวม"</p>'}
+    </div>
+    <div class="card"><h2>วันซ้อมใช้งาน</h2>
+      <p class="small muted">สร้างเวรให้ทุกคน (กลุ่มเดิม) และชนิดกีฬาหลอก 8 ชนิด (มีตารางคู่ 4 ชนิด) ในวันที่เลือก รายการที่ส่งวันนั้นติดป้ายทดสอบ ไม่กระทบวันแข่งจริง</p>
+      ${d.props.DEMO_DATE?`<div class="err" style="margin-bottom:8px">ตอนนี้ตั้ง DEMO_DATE = ${esc(d.props.DEMO_DATE)} อยู่ ระบบจะใช้วันนั้นแทนวันจริง ลบค่าในชีต Config ก่อนซ้อม</div>`:''}
+      ${td.length?`<table style="margin-bottom:10px"><tbody>${td.map(x=>`<tr><td>${thDate(x)}${x===d.props.realToday?' <span class="tag green">วันนี้</span>':''}</td><td style="text-align:right"><button class="btn sm danger" data-tdrm="${esc(x)}">ลบวันทดสอบ</button></td></tr>`).join('')}</tbody></table>`:''}
+      <div class="row"><input type="date" id="tdDate" value="${esc(d.props.realToday)}" style="flex:1;min-width:160px"><button class="btn sm pri" id="tdMk">สร้างวันทดสอบ</button></div>
     </div>
     ${d.badMatches.length?`<div class="card"><h2>⚠️ ตารางคู่ที่ไม่ตรงกับชนิดกีฬา-วัน</h2><p class="small muted">แถวในชีต Matches ที่ชื่อกีฬาหรือวันที่ไม่ตรงกับชีต SportDays (ระบบจะไม่แสดงให้ นศ.เลือก)</p>
       <table><tbody>${d.badMatches.map(m=>`<tr><td>แถว ${m.row}</td><td>${esc(m.date)}</td><td>${esc(m.sport)}</td><td>คู่ ${esc(m.matchNo)}</td></tr>`).join('')}</tbody></table></div>`:''}
@@ -568,9 +646,20 @@ async function viewAdmin(){
         <td>${s.binding?.status==='pending'?`<button class="btn sm good" data-ap="${esc(s.binding.userId)}">อนุมัติ</button> `:''}${s.binding?`<button class="btn sm" data-ub="${esc(s.binding.userId)}" data-c="${esc(s.code)}">ยกเลิกการผูก</button>`:''}</td></tr>`).join('')}
       </tbody></table></div></div>`;
   $('#app').onclick = async e => {
-    const ap = e.target.closest('[data-ap]'), ub = e.target.closest('[data-ub]');
+    const ap = e.target.closest('[data-ap]'), ub = e.target.closest('[data-ub]'), tr = e.target.closest('[data-tdrm]');
+    if (tr && await confirmDlg('ลบวันทดสอบ?', `เวร ชนิดกีฬาหลอก ตารางคู่ เช็กอิน และรายการที่ส่งของวันที่ ${thDate(tr.dataset.tdrm)} จะถูกลบทั้งหมด`, 'ลบ')){
+      const r = await api('adminTestDay', {op:'remove', date:tr.dataset.tdrm}).catch(x=>toast(x.message, 4000));
+      if (r){ toast('ลบวันทดสอบแล้ว'); await api('me').then(m=>{ S.today=m.today; S.demo=m.demo; }); route(); }
+      return;
+    }
     if (ap){ await api('adminApprove', {userId:ap.dataset.ap}).catch(x=>toast(x.message)); viewAdmin(); }
     if (ub && await confirmDlg('ยกเลิกการผูกบัญชี?', `${esc(ub.dataset.c)} จะต้องลงทะเบียนใหม่`, 'ยกเลิกการผูก')){ await api('adminUnbind', {userId:ub.dataset.ub}).catch(x=>toast(x.message)); viewAdmin(); }
+  };
+  $('#tdMk').onclick = async () => {
+    const date = $('#tdDate').value; if (!date) return;
+    if (!await confirmDlg('สร้างวันทดสอบ?', `วันที่ ${thDate(date)} ทุกคนจะมีเวรตามกลุ่มเดิม และมีชนิดกีฬาหลอก 8 ชนิดให้ลองส่งผล`, 'สร้าง')) return;
+    const r = await api('adminTestDay', {op:'create', date}).catch(x=>toast(x.message, 4000));
+    if (r){ toast(r.already ? 'มีวันทดสอบนี้อยู่แล้ว' : `สร้างแล้ว: ${r.roster} คน ${r.sports} ชนิดกีฬา ${r.matches} คู่`, 4000); await api('me').then(m=>{ S.today=m.today; S.demo=m.demo; }); route(); }
   };
   $('#clr').onclick = async () => { if (await confirmDlg('ลบรายการทดสอบทั้งหมด?', `${d.testCount} รายการและรูปที่แนบจะถูกลบ`, 'ลบ')){ const r = await api('adminClearTests').catch(x=>toast(x.message)); if(r) toast('ลบแล้ว '+r.removed+' รายการ'); viewAdmin(); } };
 }
@@ -592,7 +681,7 @@ function reasonDlg(){
     $('#dy').onclick=()=>{ const v=$('#rv').value.trim(); if(!v) return; d.close(); res(v); }; $('#dn').onclick=()=>{d.close();res(null)}; d.oncancel=()=>res(null); });
 }
 
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && S.me.bound && ['queue','dash','mine'].includes(S.tab)) route(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && S.me.bound && ['queue','dash','mine','attend'].includes(S.tab)) route(); });
 boot();
 </script>
 </body>
