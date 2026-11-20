@@ -125,9 +125,15 @@ a{color:var(--accent)}
 .daychip.on{border-color:var(--accent);background:var(--accent);color:#fff}.daychip.on small{color:#e3ecfa}
 .yes{color:var(--good-ink);font-weight:600;white-space:nowrap}.no{color:var(--crit-ink);font-weight:600;white-space:nowrap}.warn{color:var(--warn-ink);font-weight:600}
 .bigline{font-size:17px;margin-top:8px}
+.busy{position:fixed;inset:0;z-index:55;background:rgba(246,245,241,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+.busybox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 24px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.15);min-width:220px}
+.loadbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:56;overflow:hidden;background:var(--accent-weak)}
+.loadbar::after{content:'';position:absolute;top:0;bottom:0;width:35%;background:var(--accent);animation:lb 1.1s ease-in-out infinite}
+@keyframes lb{0%{left:-35%}100%{left:100%}}
 .actbar{margin:8px -16px 0;padding:8px 16px;background:var(--warn-weak);color:var(--warn-ink);font-size:13px;line-height:1.5}
 .actbar .btn{margin-left:6px;vertical-align:middle}
 .att td:first-child{width:52%}
+@media(max-width:640px){table.posts td{display:block;width:auto!important;border:0;padding:2px 0}table.posts tr{display:block;border-bottom:1px solid var(--line);padding:8px 0}}
 .acts{display:flex;gap:14px;align-items:baseline;font-size:13px;margin-top:2px}
 .linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:13px;white-space:nowrap}
 .help h3{color:var(--ink);font-size:16px;margin:16px 0 6px}
@@ -147,6 +153,8 @@ a{color:var(--accent)}
 </header>
 <main id="app"><div class="center-msg"><div class="spin"></div>กำลังเปิดระบบ…</div></main>
 <dialog id="dlg"></dialog>
+<div id="loadbar" class="loadbar" hidden></div>
+<div id="busy" class="busy" hidden role="status" aria-live="polite"><div class="busybox"><div class="spin"></div><div id="busyMsg" style="font-weight:600"></div><div class="small muted">กรุณารอสักครู่ อย่าปิดหน้านี้</div></div></div>
 
 <script>
 /* ===================== ตั้งค่า ===================== */
@@ -180,9 +188,31 @@ function every(ms, fn){ S.timers.push(setInterval(()=>{ if(!document.hidden) fn(
 function store(k, v){ try{ v===undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 function load(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 
+/* ---------- ตัวบอกว่ากำลังทำงาน ---------- */
+// คำสั่งที่บันทึกข้อมูล → แผ่นบังหน้าจอพร้อมตัวหมุน (กันกดซ้ำ) · คำสั่งอ่าน/รีเฟรชเบื้องหลัง → แถบบางใต้หัวจอ
+const BUSY_MSG = {submit:'กำลังส่งผล…', resubmit:'กำลังส่งรูปใหม่…', checkin:'กำลังเช็กอิน…', checkout:'กำลังบันทึกเวลาเลิกงาน…',
+  claim:'กำลังรับรายการ…', release:'กำลังคืนคิว…', entered:'กำลังบันทึก…', verify:'กำลังบันทึก…', returnSub:'กำลังตีกลับ…',
+  closeSport:'กำลังบันทึก…', bind:'กำลังลงทะเบียน…', adminApprove:'กำลังอนุมัติ…', adminUnbind:'กำลังบันทึก…',
+  adminClearTests:'กำลังลบรายการทดสอบ…', adminTestDay:'กำลังบันทึก…', adminSubstitute:'กำลังบันทึก…'};
+let busyN = 0, barN = 0, busyTimer = null;
+function busyOn(msg){
+  busyN++; $('#busyMsg').textContent = msg;
+  if (!busyTimer && $('#busy').hidden) busyTimer = setTimeout(()=>{ busyTimer = null; if (busyN) $('#busy').hidden = false; }, 250); // งานเร็วไม่ต้องกระพริบ
+  return () => { if (--busyN <= 0){ busyN = 0; clearTimeout(busyTimer); busyTimer = null; $('#busy').hidden = true; } };
+}
+function barOn(){
+  barN++; $('#loadbar').hidden = false;
+  return () => { if (--barN <= 0){ barN = 0; $('#loadbar').hidden = true; } };
+}
+
 /* ---------- API ---------- */
 let idToken = null;
 async function api(action, body={}, opts={}){
+  const msg = opts.busy !== undefined ? opts.busy : BUSY_MSG[action];
+  const done = msg ? busyOn(msg) : barOn();
+  try{ return await apiCall(action, body, opts, msg); } finally { done(); }
+}
+async function apiCall(action, body, opts, msg){
   const payload = Object.assign({action}, body);
   if (DEV) payload.devUser = DEV; else payload.idToken = idToken;
   if (S.act){ payload.actAs = S.act.role; payload.actGroup = S.act.group || ''; } // server ใช้เฉพาะบัญชีผู้ดูแล
@@ -199,6 +229,7 @@ async function api(action, body={}, opts={}){
       lastErr = e;
       if (e.code === 'TOKEN_INVALID' && !DEV && window.liff){ toast('กำลังยืนยันตัวตน LINE ใหม่…'); try{ liff.logout(); }catch(_){} liff.login({redirectUri: location.href}); throw e; }
       if (e.code && e.code !== 'BUSY') throw e;   // server ตอบกลับมาแล้ว ไม่ต้องลองซ้ำ (ยกเว้นคิว lock เต็ม)
+      if (msg && i < tries) $('#busyMsg').textContent = 'สัญญาณไม่ดี กำลังลองใหม่ (' + (i+2) + '/' + (tries+1) + ')…';
       await new Promise(r=>setTimeout(r, 1200*(i+1) + Math.random()*800));
     }
   }
@@ -247,7 +278,7 @@ function route(){
     field:  [['checkin','① เช็กอิน'+ok1],['submit','② ส่งผล'],['mine','③ ติดตามผล'],['help','❓ วิธีใช้']],
     center: [['checkin','① เข้าศูนย์'+ok1],['queue','② คิวรับผล'],['help','❓ วิธีใช้']],
     admin:  [['queue','คิวรับผล'],['dash','ภาพรวม'],['attend','การมาทำงาน'],['admin','ผู้ดูแล'],['submit','ส่งผล'],['help','❓ วิธีใช้']],
-    viewer: [['dash','ภาพรวม'],['help','❓ วิธีใช้']],
+    viewer: [['dash','ภาพรวม'],['attend','การมาทำงาน'],['help','❓ วิธีใช้']],
   }[R()] || [['help','❓ วิธีใช้']];
   const want = qs.get('tab');
   const first = R()==='field' ? (S.checkin?'submit':'checkin') : R()==='center' ? (S.checkin?'queue':'checkin') : tabs[0][0];
@@ -716,7 +747,7 @@ function renderAttend(d){
   if (center.length) sections.push({title:'ศูนย์ป้อนข้อมูล', posts:['ศูนย์ป้อนข้อมูล'], people:center});
   [...new Set(ros.filter(p=>p.role!=='center').map(p=>p.group||''))].sort((a,b)=>a.localeCompare(b,'th')).forEach(g => {
     const ps = ros.filter(p=>p.role!=='center' && (p.group||'')===g);
-    sections.push({title:'ภาคสนาม'+(g?' กลุ่ม '+g:''), posts:ps[0].posts, people:ps});
+    sections.push({title:'ภาคสนาม'+(g?' กลุ่ม '+g:''), posts:[...new Set(ps.flatMap(p=>p.posts))], people:ps});
   });
   const extra = d.people.filter(p=>!p.rostered);
   if (extra.length) sections.push({title:'มาช่วย (ไม่มีเวรวันนี้)', posts:[], people:extra});
@@ -725,10 +756,10 @@ function renderAttend(d){
   const post = p => p.status==='post' ? `<span class="yes">✓ ${esc(p.now)}</span>`
     : p.status==='away' ? `<span class="warn">⚠️ อยู่ที่ ${esc(p.now||'-')}</span>`
     : p.status==='left' ? `<span class="muted">ออกแล้ว ${hm(p.lastOut)}</span>` : `<span class="muted">—</span>`;
-  const row = p => `<tr><td><b>${nm(p)}</b>${p.replaces?`<div><span class="tag" style="background:var(--warn-weak);border-color:var(--warn)">แทน ${esc(p.replaces+' '+String(p.replacesName||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''))}</span></div>`:''}
+  const row = p => `<tr><td><b>${nm(p)}</b>${p.rostered && p.role!=='center' && p.posts.length ? `<div class="small muted">จุด: ${p.posts.map(esc).join(' + ')}</div>` : ''}${p.replaces?`<div><span class="tag" style="background:var(--warn-weak);border-color:var(--warn)">แทน ${esc(p.replaces+' '+String(p.replacesName||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''))}</span></div>`:''}
       ${p.trail.length>1?`<div class="small muted">${p.trail.map(t=>hm(t.inAt)+' '+esc(t.sport||'-')).join(' → ')}</div>`:''}
       <div class="acts">${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}
-      ${p.rostered ? (p.replaces ? `<button class="linkbtn" data-unsub="${esc(p.code)}" data-o="${esc(p.replaces)}">ยกเลิกแทน</button>` : `<button class="linkbtn" data-sub="${esc(p.code)}">ระบุคนแทน</button>`) : ''}</div></td>
+      ${S.me.role==='admin' && p.rostered ? (p.replaces ? `<button class="linkbtn" data-unsub="${esc(p.code)}" data-o="${esc(p.replaces)}">ยกเลิกแทน</button>` : `<button class="linkbtn" data-sub="${esc(p.code)}">ระบุคนแทน</button>`) : ''}</div></td>
     <td><div>${came(p)}</div><div style="margin-top:2px">${post(p)}</div></td></tr>`;
   const pct = sm.rostered ? Math.round(sm.came/sm.rostered*100) : 0;
   $('#aBody').innerHTML = `
@@ -740,6 +771,7 @@ function renderAttend(d){
         <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="aMiss" ${aOnlyMissing?'checked':''}> แสดงเฉพาะคนที่ยังไม่ได้ประจำตำแหน่ง</label>`
       : '<p class="muted">ไม่มีเวรในวันนี้</p>'}
     </div>
+    ${postsCard(d, nm)}
     ${sections.map(sec => { const ps = sec.people.filter(p=>!aOnlyMissing || p.status!=='post');
       const c1 = sec.people.filter(p=>p.firstIn).length, c2 = sec.people.filter(p=>p.status==='post').length;
       return `<div class="card"><div class="hrow"><h2 style="margin:0">${esc(sec.title)}</h2><span class="small">มา <b>${c1}</b>/${sec.people.length} · ประจำ <b>${c2}</b></span></div>
@@ -772,6 +804,34 @@ function subDlg(p, d){
     <div class="row"><button class="btn" id="dn">ยกเลิก</button><button class="btn pri" id="dy">บันทึก</button></div>`);
     $('#dy').onclick = () => { const v = $('#sv').value; if (!v) return; dl.close(); res(v); };
     $('#dn').onclick = () => { dl.close(); res(null); }; dl.oncancel = () => res(null); });
+}
+// ประจำสนาม: จุดตามชีตจัดคนลงสนาม มีคนครบตามจำนวนหรือยัง · จุดที่ขาดขึ้นแดงไว้บนสุด · สำรองแสดงแยกท้ายการ์ด
+function postsCard(d, nm){
+  if (!d.posts || !d.posts.length) return '';
+  const P = Object.fromEntries(d.people.map(p=>[p.code,p]));
+  const who = c => nm(P[c]||{code:c,name:''});
+  const main = d.posts.filter(x=>x.status!=='reserve'), reserve = d.posts.filter(x=>x.status==='reserve');
+  const rank = {short:0, ok:1, closed:2};
+  const ps = main.slice().sort((a,b)=> rank[a.status]-rank[b.status] || (a.kind==='ศูนย์'?-1:b.kind==='ศูนย์'?1:0) || (a.group||'').localeCompare(b.group||'','th') || a.post.localeCompare(b.post,'th'));
+  const open = main.filter(x=>x.status!=='closed'), short = open.filter(x=>x.status==='short').length;
+  const kindTag = k => k && !['ปกติ','ศูนย์'].includes(k) ? ` <span class="tag">${esc(k)}</span>` : '';
+  const person = (a, reserveRow) => {
+    const p = P[a.code];
+    const where = reserveRow ? (a.came ? 'มาแล้ว' : 'ยังไม่มา') : a.present ? '' : a.now ? 'อยู่ที่ '+esc(a.now) : a.came ? 'ออกจากจุดแล้ว' : 'ยังไม่มา';
+    return `<div class="${a.present?'yes':'no'}" style="font-weight:400;white-space:normal">${a.present?'✓':'✗'} ${who(a.code)}${a.replaces?` <span class="tag" style="background:var(--warn-weak);border-color:var(--warn)">แทน ${esc(a.replaces)}</span>`:''}${where?` <span class="small muted">· ${where}</span>`:''}${!a.present&&p&&p.phone?` <a class="small" href="tel:${esc(p.phone)}">โทร</a>`:''}</div>`;
+  };
+  const row = x => `<tr>
+    <td><b>${esc(x.post)}</b>${kindTag(x.kind)}${x.group?` <span class="tag">กลุ่ม ${esc(x.group)}</span>`:''}
+      ${x.sports.length && x.sports.join(' + ')!==x.post ? `<div class="small muted">${x.sports.map(esc).join(' + ')}</div>` : ''}</td>
+    <td>${x.status==='closed' ? '<span class="muted">ปิดวันแล้ว</span>' : `<b class="${x.status==='ok'?'yes':'no'}">${x.status==='ok'?'✓':'✗'} ${x.count}/${x.need} คน</b>`}
+      <div class="small">${x.assigned.map(a=>person(a)).join('')}${x.helpers.length?`<div class="muted">+ มาช่วย: ${x.helpers.map(who).join(', ')}</div>`:''}
+      ${!x.assigned.length && !x.helpers.length && x.status!=='closed' ? '<span class="muted">ยังไม่มีคนเช็กอิน</span>' : ''}</div></td></tr>`;
+  return `<div class="card"><div class="hrow"><h2 style="margin:0">ประจำสนาม${d.isToday?' ตอนนี้':''}</h2>
+      <span class="small">ครบ <b>${open.length-short}</b>/${open.length} จุด${short?` · <b class="no">ขาด ${short}</b>`:''}</span></div>
+    <p class="small muted" style="margin:4px 0 6px">ตามผังจัดคนลงสนาม · นับคนที่เช็กอินอยู่ที่ชนิดกีฬาของจุดนั้นและยังไม่เลิกงาน (รวมคนมาช่วย)</p>
+    <table class="att posts"><tbody>${ps.map(row).join('')}</tbody></table>
+    ${reserve.length ? `<h3>สำรองของกลุ่ม (เรียกเสริมจุดที่ขาดได้)</h3><div class="small">${reserve.map(x=>`<div style="margin-bottom:4px"><span class="tag">กลุ่ม ${esc(x.group)}</span> ${x.assigned.map(a=>person(a,true)).join('')}</div>`).join('')}</div>` : ''}
+  </div>`;
 }
 function renderAttendDays(sel){ document.querySelectorAll('#aDays .daychip').forEach(b=>b.classList.toggle('on', b.dataset.d===sel)); }
 
@@ -888,6 +948,10 @@ const HELP = {
       <li><span class="tag green">✅ ครบ</span> = ทุกคู่ของชนิดกีฬานั้นป้อน กกท. แล้ว</li>
       <li>รายชื่อผู้ช่วยงาน: <span class="dot d-in"></span>อยู่หน้างาน <span class="dot d-out"></span>ออกแล้ว <span class="dot d-none"></span>ยังไม่เช็กอิน</li>
       <li>เลือกวันอื่นได้จากช่องวันที่ หน้านี้รีเฟรชเองทุก 1 นาที</li></ul>
+    <h3>แท็บการมาทำงาน — ตามคนให้ครบทุกสนาม</h3>
+    <ul><li>เลือกวันจากแถบด้านบน (ตัวเลข = มาแล้ว / มีเวร)</li>
+      <li>การ์ด <b>ประจำสนาม</b>: ทุกจุดตามผังจัดคนลงสนาม เช่น <span class="no">✗ 1/2 คน</span> พร้อมรายชื่อคนที่จัดไว้ว่าใครยังไม่มา (กด "โทร" ได้) · จุดที่ขาดขึ้นบนสุด · ท้ายการ์ดมี <b>สำรองของกลุ่ม</b> ไว้เรียกเสริม</li>
+      <li>การ์ดรายกลุ่ม: แต่ละคน <b>มาแล้ว</b> (เวลาเข้า) และ <b>ประจำตำแหน่ง</b> (อยู่ที่จุดตามผังจัดคนลงสนามหรือไม่ · คนสำรองนับกีฬาใดก็ได้ของกลุ่ม) · ติ๊ก "แสดงเฉพาะคนที่ยังไม่ได้ประจำตำแหน่ง" เพื่อดูคนที่ต้องตาม</li></ul>
     <p>บัญชีนี้ดูได้อย่างเดียว แก้ไขข้อมูลไม่ได้ ถ้าพบปัญหาแจ้งผู้ดูแลระบบ</p>`],
   admin: ['ผู้ดูแล', `
     <h3>งานประจำวัน</h3><ul><li><b>การมาทำงาน</b>: เลือกวัน → ดูว่าใครมาแล้ว และอยู่ประจำตำแหน่งหรือยัง (ติ๊ก "แสดงเฉพาะคนที่ยังไม่ได้ประจำตำแหน่ง" เพื่อดูคนที่ต้องตาม)</li>
