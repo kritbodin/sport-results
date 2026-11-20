@@ -96,8 +96,6 @@ th{color:var(--ink2);font-weight:600;font-size:13px;white-space:nowrap}
 .tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:6px;background:var(--bg);border:1px solid var(--line);margin:1px 2px 1px 0;white-space:nowrap}
 .tag.red{background:var(--crit-weak);border-color:var(--crit);color:var(--crit-ink)}
 .tag.green{background:var(--good-weak);border-color:var(--good);color:var(--good-ink)}
-.people{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:900px){.people{grid-template-columns:repeat(3,1fr)}}
 .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .toolbar select,.toolbar input{width:auto;padding:8px 10px}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:50;display:flex;align-items:center;justify-content:center;overflow:auto}
@@ -675,44 +673,33 @@ async function viewDash(){
 async function refreshDash(){
   let d; try{ d = await api('dashboard', {date:S.dashDate}); }catch(e){ $('#dBody').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
   $('#dAt').textContent = 'อัปเดต ' + hm(d.generatedAt) + ' น. · รีเฟรชเองทุก 1 นาที';
-  const sm = d.summary, P = Object.fromEntries(d.people.map(p=>[p.code,p]));
+  // ภาพรวม = ผลการแข่งขันอย่างเดียว · เรื่องคน (เช็กอิน/ประจำสนาม/งานรายคน/เบอร์โทร) อยู่ในแท็บการมาทำงาน
+  const sm = d.summary;
   const remaining = sm.sportsTotal - sm.sportsComplete;
   const tile = (l,v,cls='',sub='') => `<div class="tile ${cls}"><div class="l">${l}</div><div class="v">${v}${sub?` <small>${sub}</small>`:''}</div></div>`;
   const sports = d.sports.slice().sort((a,b)=> (a.complete-b.complete) || (b.overdue.length-a.overdue.length) || a.group.localeCompare(b.group,'th') || a.sport.localeCompare(b.sport,'th'));
   const seg = s => { const T = Math.max(s.total||0, s.submitted); if (!T) return `<div class="seg" title="ยังไม่มีข้อมูลจำนวนคู่"><span class="s-left" style="flex:1"></span></div>`;
     const parts = [['s-done',s.entered],['s-pend',s.pendingEntry],['s-left',Math.max(0,T-s.submitted)]].filter(p=>p[1]>0);
     return `<div class="seg" title="ป้อนแล้ว ${s.entered} · รอป้อน ${s.pendingEntry} · ยังไม่ส่ง ${Math.max(0,T-s.submitted)}">${parts.map(([c,v])=>`<span class="${c}" style="flex:${v}"></span>`).join('')}</div>`; };
-  const nm = c => P[c] ? esc(c+' '+P[c].name.replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,'')) : esc(c);
-  const per = (role) => d.people.filter(p=>p.role===role).sort((a,b)=>(a.group||'').localeCompare(b.group||'','th')||a.code.localeCompare(b.code));
-  const personRow = p => { const t = d.perPerson[p.code]||{};
-    return `<tr><td><span class="dot d-${p.status}"></span>${nm(p.code)}${p.group?` <span class="tag">${esc(p.group)}</span>`:''}</td>
-      <td class="small">${p.status==='in'?esc(p.at||'')+' · '+hm(p.since):p.status==='out'?'ออกแล้ว '+hm(p.since):'<span style="color:var(--crit-ink)">ยังไม่เช็กอิน</span>'}</td>
-      <td class="small">${p.role==='field'?(t.sent||0)+' ส่ง':(t.claimed||0)+' รับ / '+(t.entered||0)+' ป้อน'}</td>
-      <td>${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}</td></tr>`; };
-  const groups = [...new Set(per('field').map(p=>p.group))];
   $('#dBody').innerHTML = `
     <div class="tiles">
-      ${tile('ชนิดกีฬารอผล', remaining, remaining?'':'', `/ ${sm.sportsTotal}`)}
+      ${tile('ชนิดกีฬารอผล', remaining, '', `/ ${sm.sportsTotal}`)}
       ${tile('ผลค้าง (เลยเวลา)', sm.overdue, sm.overdue?'alert':'')}
       ${tile('⏳ รอศูนย์รับ', sm.waitingClaim)}
       ${tile('✍️ กำลังป้อน', sm.inProgress)}
       ${tile('✅ ป้อน กกท. แล้ว', sm.entered)}
-      ${tile('ภาคสนามเช็กอิน', sm.fieldIn, '', `/ ${sm.fieldOnDuty}`)}
-      ${tile('ศูนย์เช็กอิน', sm.centerIn, '', `/ ${sm.centerOnDuty}`)}
+      ${tile('↩️ ตีกลับรอส่งใหม่', sm.returned, sm.returned?'alert':'')}
     </div>
     <div class="card"><h2>ความคืบหน้ารายชนิดกีฬา</h2>
       <div class="small muted" style="margin-bottom:6px"><span class="dot" style="background:var(--good)"></span>ป้อนแล้ว <span class="dot" style="background:var(--warn);margin-left:10px"></span>ส่งแล้วรอป้อน <span class="dot" style="background:var(--line)"></span>ยังไม่ส่ง</div>
-      <div class="tbl-wrap"><table><thead><tr><th>ชนิดกีฬา</th><th>กลุ่ม</th><th>ความคืบหน้า</th><th>ส่ง/ทั้งหมด</th><th>สถานะ</th><th>อยู่หน้างาน</th></tr></thead><tbody>
+      <div class="tbl-wrap"><table><thead><tr><th>ชนิดกีฬา</th><th>กลุ่ม</th><th>ความคืบหน้า</th><th>ส่ง/ทั้งหมด</th><th>สถานะ</th></tr></thead><tbody>
       ${sports.map(s=>`<tr><td><b>${esc(s.sport)}</b><div class="small muted">${esc(s.venue)}</div></td><td>${esc(s.group)}</td>
         <td>${seg(s)}</td>
         <td>${s.submitted} / ${s.total ?? '?'}${s.hasMatchList?'':'<div class="small muted">'+(s.closed?'ปิดแล้ว':'ยังไม่มีตารางคู่')+'</div>'}</td>
-        <td>${s.complete?'<span class="tag green">✅ ครบ</span>':''}${s.overdue.map(o=>`<span class="tag red">⚠️ คู่ ${esc(o.matchNo)} (${esc(o.startTime)})</span>`).join('')}${s.returned?`<span class="tag red">↩️ ตีกลับ ${s.returned}</span>`:''}</td>
-        <td class="small">${s.onSite.map(nm).join('<br>') || '<span class="muted">—</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">ไม่มีการแข่งวันนี้</td></tr>'}
+        <td>${s.complete?'<span class="tag green">✅ ครบ</span>':''}${s.overdue.map(o=>`<span class="tag red">⚠️ คู่ ${esc(o.matchNo)} (${esc(o.startTime)})</span>`).join('')}${s.returned?`<span class="tag red">↩️ ตีกลับ ${s.returned}</span>`:''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">ไม่มีการแข่งวันนี้</td></tr>'}
       </tbody></table></div></div>
-    <div class="people">
-      <div class="card"><h2>ศูนย์ป้อนข้อมูล</h2><table><tbody>${per('center').map(personRow).join('') || '<tr><td class="muted">ไม่มีเวร</td></tr>'}</tbody></table></div>
-      ${groups.map(g=>`<div class="card"><h2>ภาคสนาม กลุ่ม ${esc(g)}</h2><table><tbody>${per('field').filter(p=>p.group===g).map(personRow).join('')}</tbody></table></div>`).join('')}
-    </div>`;
+    <div class="card hrow"><div><b>คนประจำสนาม / ใครมาแล้ว / โทรตามคน</b><div class="small muted">ดูได้ที่แท็บการมาทำงาน</div></div>
+      <button class="btn sm" onclick="S.attDate=S.dashDate; go('attend')">ไปที่การมาทำงาน →</button></div>`;
 }
 
 /* ---------- attendance (admin): เวรต่อวัน ---------- */
@@ -757,7 +744,8 @@ function renderAttend(d){
     : p.status==='away' ? `<span class="warn">⚠️ อยู่ที่ ${esc(p.now||'-')}</span>`
     : p.status==='left' ? `<span class="muted">ออกแล้ว ${hm(p.lastOut)}</span>` : `<span class="muted">—</span>`;
   const row = p => `<tr><td><b>${nm(p)}</b>${p.rostered && p.role!=='center' && p.posts.length ? `<div class="small muted">จุด: ${p.posts.map(esc).join(' + ')}</div>` : ''}${p.replaces?`<div><span class="tag" style="background:var(--warn-weak);border-color:var(--warn)">แทน ${esc(p.replaces+' '+String(p.replacesName||'').replace(/^(นาย|นางสาว|น\.ส\.?|นาง)\s*/,''))}</span></div>`:''}
-      ${p.trail.length>1?`<div class="small muted">${p.trail.map(t=>hm(t.inAt)+' '+esc(t.sport||'-')).join(' → ')}</div>`:''}
+      ${p.trail?`<div class="small muted">${p.trail.map(t=>hm(t.inAt)+' '+esc(t.sport||'-')).join(' → ')}</div>`:''}
+      ${p.work?`<div class="small muted">งานวันนี้: ${p.role==='center'?`รับ ${p.work.claimed} · ป้อน ${p.work.entered}`:`ส่ง ${p.work.sent}`}</div>`:''}
       <div class="acts">${p.phone?`<a href="tel:${esc(p.phone)}">โทร</a>`:''}
       ${S.me.role==='admin' && p.rostered ? (p.replaces ? `<button class="linkbtn" data-unsub="${esc(p.code)}" data-o="${esc(p.replaces)}">ยกเลิกแทน</button>` : `<button class="linkbtn" data-sub="${esc(p.code)}">ระบุคนแทน</button>`) : ''}</div></td>
     <td><div>${came(p)}</div><div style="margin-top:2px">${post(p)}</div></td></tr>`;
@@ -946,7 +934,7 @@ const HELP = {
       <li>แถบความคืบหน้า: <span class="dot" style="background:var(--good)"></span>ป้อน กกท. แล้ว <span class="dot" style="background:var(--warn)"></span>ส่งแล้วรอป้อน <span class="dot" style="background:var(--line)"></span>ยังไม่ส่ง</li>
       <li><span class="tag red">⚠️ คู่ 3 (09:00)</span> = ผลค้าง: เลยเวลาจบโดยประมาณแล้ว แต่ยังไม่มีใครส่งผลคู่นั้น</li>
       <li><span class="tag green">✅ ครบ</span> = ทุกคู่ของชนิดกีฬานั้นป้อน กกท. แล้ว</li>
-      <li>รายชื่อผู้ช่วยงาน: <span class="dot d-in"></span>อยู่หน้างาน <span class="dot d-out"></span>ออกแล้ว <span class="dot d-none"></span>ยังไม่เช็กอิน</li>
+      <li>เรื่องคน (ใครมาแล้ว ประจำสนามครบไหม โทรตาม) อยู่ในแท็บ <b>การมาทำงาน</b></li>
       <li>เลือกวันอื่นได้จากช่องวันที่ หน้านี้รีเฟรชเองทุก 1 นาที</li></ul>
     <h3>แท็บการมาทำงาน — ตามคนให้ครบทุกสนาม</h3>
     <ul><li>เลือกวันจากแถบด้านบน (ตัวเลข = มาแล้ว / มีเวร)</li>
