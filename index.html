@@ -128,6 +128,8 @@ a{color:var(--accent)}
 .loadbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:56;overflow:hidden;background:var(--accent-weak)}
 .loadbar::after{content:'';position:absolute;top:0;bottom:0;width:35%;background:var(--accent);animation:lb 1.1s ease-in-out infinite}
 @keyframes lb{0%{left:-35%}100%{left:100%}}
+.sitechip{text-decoration:none;color:var(--accent);border-color:var(--accent);background:var(--accent-weak);font-weight:600}
+.hrow .who{min-width:0}
 .actbar{margin:8px -16px 0;padding:8px 16px;background:var(--warn-weak);color:var(--warn-ink);font-size:13px;line-height:1.5}
 .actbar .btn{margin-left:6px;vertical-align:middle}
 .att td:first-child{width:52%}
@@ -144,7 +146,7 @@ a{color:var(--accent)}
 <header id="hdr" hidden>
   <div class="hrow">
     <div class="who" id="who"></div>
-    <div class="row" style="gap:6px"><span class="chip demo" id="demoChip" hidden>โหมดทดสอบ</span><span class="chip" id="dateChip"></span></div>
+    <div class="row" style="gap:6px;justify-content:flex-end"><a class="chip sitechip" data-site href="https://nakhonlamduangames.sskru.ac.th/" target="_blank" rel="noopener">🌐 ผลการแข่งขัน</a><span class="chip demo" id="demoChip" hidden>โหมดทดสอบ</span><span class="chip" id="dateChip"></span></div>
   </div>
   <div id="actBar" class="actbar" hidden></div>
   <nav id="tabs"></nav>
@@ -159,6 +161,7 @@ a{color:var(--accent)}
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyNRV4gg9f6MKveoF1IyluZlCipxhrytzwp14-sp2FqwjQe2BRRaVnGdIQbpdAx-a-EVg/exec', // URL ของ Apps Script web app
   LIFF_ID: '2012686497-TCDokhkE',                             // LIFF ID จาก LINE Developers
+  SITE_URL: 'https://nakhonlamduangames.sskru.ac.th/',         // เว็บไซต์ผลการแข่งขันทางการ (ลิงก์ที่หัวจอ/คู่มือ/คิว)
 };
 /* =================================================== */
 
@@ -319,7 +322,8 @@ function viewBind(){
     <div id="vErr" style="margin-top:10px"></div>
     <button class="btn block" id="vGo" style="margin-top:10px">ขอสิทธิ์ดูภาพรวม</button>
   </div>
-  <div style="max-width:480px;margin:12px auto"><button class="btn block" id="hGo">❓ วิธีใช้ / คู่มือ</button></div>`;
+  <div style="max-width:480px;margin:12px auto"><button class="btn block" id="hGo">❓ วิธีใช้ / คู่มือ</button>
+    <a class="btn block" style="margin-top:8px" data-site href="https://nakhonlamduangames.sskru.ac.th/" target="_blank" rel="noopener">🌐 ดูผลการแข่งขัน (เว็บไซต์นครลำดวนเกมส์)</a></div>`;
   $('#hGo').onclick = () => viewHelp(true);
   const go = async (body, errBox='#bErr') => {
     $('#bErr').innerHTML=''; $('#vErr').innerHTML='';
@@ -614,6 +618,7 @@ function refreshQueueSel(){
       ${(s.status==='SUBMITTED'||mineClaim)?`<button class="btn danger" data-a="return">ตีกลับ</button>`:''}
       ${s.status==='ENTERED'&&S.queue.verifyEnabled&&!s.verifiedBy&&(s.enteredBy!==me||admin)?`<button class="btn" data-a="verify">ตรวจทานแล้ว</button>`:''}
       ${s.status==='ENTERED'&&admin?`<button class="btn danger" data-a="return">ตีกลับ (ผู้ดูแล)</button>`:''}
+      ${s.status==='ENTERED'?`<a class="btn sm" data-site href="https://nakhonlamduangames.sskru.ac.th/" target="_blank" rel="noopener">🌐 ตรวจผลบนเว็บไซต์</a>`:''}
     </div>
     <div class="row" id="pTabs">${Array.from({length:s.photoCount},(_,i)=>`<button class="btn sm" data-p="${i}">รูป ${i+1}</button>`).join('')}<button class="btn sm" id="rot">⟳ หมุน</button></div>
     <div class="photo-box" id="pBox" style="margin-top:8px"><div class="spin"></div></div>
@@ -965,6 +970,7 @@ function viewHelp(unbound){
     $('#app').innerHTML = `<div class="card help" style="max-width:760px;margin:0 auto">
       ${unbound?'<button class="btn sm" id="hBack" style="margin-bottom:10px">← กลับไปลงทะเบียน</button>':''}
       <h2>วิธีใช้ / คู่มือ</h2>
+      <div class="hint" style="margin-bottom:10px">🌐 ผลการแข่งขันที่อัปเดตแล้ว ดูได้ที่ <a class="sitelink" data-site href="https://nakhonlamduangames.sskru.ac.th/" target="_blank" rel="noopener">nakhonlamduangames.sskru.ac.th</a></div>
       <div class="pills" id="hT">${keys.map(k=>`<button class="pill ${k===cur?'on':''}" data-k="${k}">${HELP[k][0]}${k===role&&!unbound?' (คุณ)':''}</button>`).join('')}</div>
       <div id="hBody">${HELP[cur][1]}</div></div>`;
     $('#hT').onclick = e => { const b=e.target.closest('[data-k]'); if(b){ cur = S.helpTab = b.dataset.k; render(); } };
@@ -990,6 +996,11 @@ function reasonDlg(){
     $('#dy').onclick=()=>{ const v=$('#rv').value.trim(); if(!v) return; d.close(); res(v); }; $('#dn').onclick=()=>{d.close();res(null)}; d.oncancel=()=>res(null); });
 }
 
+// ลิงก์เว็บไซต์ผลการแข่งขัน: ในแอป LINE เปิดเป็นหน้าต่างใหม่ (หน้าแอปและร่างที่ยังไม่ส่งไม่หาย)
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-site]'); if (!a) return;
+  if (window.liff && liff.isInClient && liff.isInClient()){ e.preventDefault(); try{ liff.openWindow({url: CONFIG.SITE_URL, external: false}); }catch(_){ location.href = CONFIG.SITE_URL; } }
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && S.me.bound && ['queue','dash','mine','attend'].includes(S.tab)) route(); });
 boot();
 </script>
